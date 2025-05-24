@@ -49,6 +49,7 @@ export default function RoomFilters({ onFilterChange, initialFilters }: RoomFilt
             value={city}
             onChange={(e) => setCity(e.target.value)}
             className="pl-10"
+            suppressHydrationWarning={true}
           />
         </div>
       </div>
@@ -88,6 +89,7 @@ export default function RoomFilters({ onFilterChange, initialFilters }: RoomFilt
             value={maxPrice}
             onChange={(e) => setMaxPrice(e.target.value)}
             className="pl-10"
+            suppressHydrationWarning={true}
           />
         </div>
       </div>
