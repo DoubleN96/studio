@@ -6,14 +6,20 @@ export async function fetchRooms(): Promise<Room[]> {
   try {
     const response = await fetch(API_URL);
     if (!response.ok) {
-      throw new Error(`Error fetching rooms: ${response.statusText}`);
+      console.error(`API request failed to fetch rooms: ${response.status} ${response.statusText}`);
+      throw new Error(`Error fetching rooms: ${response.status} ${response.statusText}`);
     }
-    const data = await response.json();
-    // The API returns an object with a "data" key which is an array of rooms
-    return data.data as Room[];
+    const apiResult = await response.json();
+    // Ensure apiResult.data is an array, otherwise default to an empty array.
+    if (apiResult && Array.isArray(apiResult.data)) {
+      return apiResult.data as Room[];
+    }
+    // Log a warning if the structure is not as expected but the response was ok
+    console.warn('Rooms API response.data is not an array or is missing, returning empty array. Response:', apiResult);
+    return [];
   } catch (error) {
-    console.error('Failed to fetch rooms:', error);
-    return []; // Return empty array on error
+    console.error('Failed to fetch rooms due to an exception:', error);
+    return []; // Return empty array on any error
   }
 }
 
