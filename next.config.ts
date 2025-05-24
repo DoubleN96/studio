@@ -16,6 +16,12 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+      {
+        protocol: 'http',
+        hostname: 'tripath.colivingsoft.site',
+        port: '',
+        pathname: '/**',
+      }
     ],
   },
 };
