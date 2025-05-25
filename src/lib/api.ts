@@ -1,3 +1,4 @@
+
 import type { Room } from './types';
 
 const API_URL = 'http://tripath.colivingsoft.site/api/version/2.0/default/rooms/feed';
@@ -6,19 +7,31 @@ export async function fetchRooms(): Promise<Room[]> {
   try {
     const response = await fetch(API_URL);
     if (!response.ok) {
-      console.error(`API request failed to fetch rooms: ${response.status} ${response.statusText}`);
+      let errorBody = '';
+      try {
+        errorBody = await response.text();
+      } catch (textError) {
+        // Ignore if can't read body
+      }
+      console.error(`API request failed to fetch rooms: ${response.status} ${response.statusText}. Response body: ${errorBody}`);
       throw new Error(`Error fetching rooms: ${response.status} ${response.statusText}`);
     }
     const apiResult = await response.json();
-    // Ensure apiResult.data is an array, otherwise default to an empty array.
+
     if (apiResult && Array.isArray(apiResult.data)) {
-      return apiResult.data as Room[];
+      return apiResult.data as Room[]; // Handles { "data": [...] }
     }
-    // Log a warning if the structure is not as expected but the response was ok
-    console.warn('Rooms API response.data is not an array or is missing, returning empty array. Response:', apiResult);
+    if (Array.isArray(apiResult)) {
+      return apiResult as Room[]; // Handles [...]
+    }
+    
+    console.warn('Rooms API response.data is not a recognized array structure, or apiResult itself is not an array. Returning empty array. Response:', apiResult);
     return [];
   } catch (error) {
-    console.error('Failed to fetch rooms due to an exception:', error);
+    console.error('Failed to fetch or parse rooms due to an exception:', error);
+    if (error instanceof Error && error.message.toLowerCase().includes('failed to fetch')) {
+        console.error("This 'Failed to fetch' error (client-side) might be due to CORS policy or network connectivity issues. Please check the browser's developer console (Network and Console tabs) for more specific error messages from the browser, especially regarding CORS.");
+    }
     return []; // Return empty array on any error
   }
 }
