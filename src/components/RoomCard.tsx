@@ -47,7 +47,7 @@ export default function RoomCard({ room }: RoomCardProps) {
             <BedDouble className="h-4 w-4 mr-2 text-accent" />
             <span>{room.room_type_name || 'Tipo no disponible'} en {room.property_type_name || 'Propiedad no disponible'}</span>
           </div>
-          {room.availability.available_from && (
+          {room.availability && room.availability.available_from && (
             <div className="flex items-center">
               <CalendarDays className="h-4 w-4 mr-2 text-accent" />
               <span>Disponible desde: {new Date(room.availability.available_from).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}</span>
@@ -66,3 +66,4 @@ export default function RoomCard({ room }: RoomCardProps) {
     </Card>
   );
 }
+
