@@ -18,17 +18,49 @@ export async function fetchRooms(): Promise<Room[]> {
     }
     const apiResult = await response.json();
 
-    // Check if the root is an array (handles direct array response)
+    // Path 1: Root is the array
     if (Array.isArray(apiResult)) {
       return apiResult as Room[];
     }
-    // Check if rooms are under a 'data' property (handles { "data": [...] })
-    if (apiResult && Array.isArray(apiResult.data)) {
-      return apiResult.data as Room[];
+
+    // Path 2: apiResult is an object, check for common top-level keys that might contain the array
+    if (typeof apiResult === 'object' && apiResult !== null) {
+      const commonTopLevelKeys = ['data', 'results', 'items', 'rooms', 'feed'];
+      for (const key of commonTopLevelKeys) {
+        if (Array.isArray(apiResult[key])) {
+          // If apiResult[key] is the array of rooms
+          return apiResult[key] as Room[];
+        }
+      }
+
+      // Path 3: Check if apiResult.data is an object containing the rooms array under another common nested key
+      // This handles structures like { "data": { "rooms": [...] } }
+      if (typeof apiResult.data === 'object' && apiResult.data !== null) {
+        const commonNestedKeys = ['rooms', 'items', 'results', 'list', 'entities']; // Added 'list', 'entities'
+        for (const key of commonNestedKeys) {
+          if (Array.isArray(apiResult.data[key])) {
+            return apiResult.data[key] as Room[];
+          }
+        }
+      }
     }
     
-    console.warn('Rooms API response.data is not a recognized array structure, or apiResult itself is not an array. Returning empty array. Response:', apiResult);
-    return []; // Default to empty array if structure is not recognized
+    // If no recognized structure is found, log a detailed warning and return an empty array
+    let warningMessage = 'Rooms API response is not in a recognized array structure. Returning empty array.';
+    if (typeof apiResult === 'object' && apiResult !== null) {
+      warningMessage += ` Available top-level keys: ${Object.keys(apiResult).join(', ')}.`;
+      if (typeof apiResult.data === 'object' && apiResult.data !== null) {
+        warningMessage += ` Keys under 'data' object: ${Object.keys(apiResult.data).join(', ')}.`;
+      }
+    }
+    // It's often helpful to see the beginning of the problematic response.
+    // Avoid logging overly large objects directly to console in production if they can be huge.
+    // For debugging, logging a snippet or type can be useful.
+    const responseSnippet = JSON.stringify(apiResult)?.substring(0, 500);
+    warningMessage += ` Response snippet: ${responseSnippet}...`;
+    console.warn(warningMessage, apiResult); // Log the full object for detailed inspection if needed
+    
+    return [];
   } catch (error) {
     console.error('Failed to fetch or parse rooms due to an exception:', error);
     if (error instanceof Error && error.message.toLowerCase().includes('failed to fetch')) {
@@ -42,4 +74,3 @@ export async function fetchRoomById(id: number): Promise<Room | undefined> {
   const rooms = await fetchRooms();
   return rooms.find(room => room.id === id);
 }
-
