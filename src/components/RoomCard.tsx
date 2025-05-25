@@ -12,12 +12,14 @@ interface RoomCardProps {
 
 export default function RoomCard({ room }: RoomCardProps) {
   const placeholderImage = "https://placehold.co/600x400.png";
-  const imageUrl = room.photos && room.photos.length > 0 ? room.photos[0].url_medium : placeholderImage;
-  const imageHint = room.photos && room.photos.length > 0 && room.title ? room.title.substring(0,20) : "room interior";
+  const imageUrl = (room.photos && room.photos.length > 0 && room.photos[0].url_medium)
+                   ? room.photos[0].url_medium
+                   : placeholderImage;
+  const imageHint = (room.photos && room.photos.length > 0 && room.title) ? room.title.substring(0,20) : "room interior";
 
   return (
     <Card className="flex flex-col h-full overflow-hidden rounded-lg shadow-lg hover:shadow-xl transition-shadow duration-300">
-      <Link href={`/room/${room.id}`} className="block">
+      <Link href={`/room/${room.id}`} className="block group">
         <CardHeader className="p-0 relative">
           <div className="aspect-video w-full relative">
             <Image
@@ -66,4 +68,3 @@ export default function RoomCard({ room }: RoomCardProps) {
     </Card>
   );
 }
-
