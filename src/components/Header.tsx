@@ -1,5 +1,7 @@
+
 import Link from 'next/link';
-import { Home } from 'lucide-react';
+import { Home, LayoutDashboard } from 'lucide-react'; // Added LayoutDashboard
+import { Button } from '@/components/ui/button';
 
 export default function Header() {
   return (
@@ -10,9 +12,28 @@ export default function Header() {
           ChattyRental
         </Link>
         <nav>
-          {/* Navigation links can be added here if needed */}
+          <ul className="flex items-center space-x-4">
+            <li>
+              <Button variant="ghost" asChild>
+                <Link href="/" className="flex items-center text-foreground hover:text-primary">
+                  <Home className="mr-1 h-5 w-5" />
+                  Inicio
+                </Link>
+              </Button>
+            </li>
+            <li>
+              <Button variant="ghost" asChild>
+                <Link href="/dashboard" className="flex items-center text-foreground hover:text-primary">
+                  <LayoutDashboard className="mr-1 h-5 w-5" />
+                  Dashboard
+                </Link>
+              </Button>
+            </li>
+          </ul>
         </nav>
       </div>
     </header>
   );
 }
+
+    
