@@ -1,7 +1,21 @@
 
-import type { Room } from './types';
+import type { Room, RoomPhoto, Amenity, RoomAvailability } from './types';
 
 const API_URL = 'https://tripath.colivingsoft.site/api/version/2.0/default/rooms/feed';
+
+// Helper to get a currency symbol (simplified)
+function getCurrencySymbol(currencyCode: string): string {
+  switch (currencyCode.toUpperCase()) {
+    case 'EUR':
+      return '€';
+    case 'USD':
+      return '$';
+    case 'GBP':
+      return '£';
+    default:
+      return currencyCode;
+  }
+}
 
 export async function fetchRooms(): Promise<Room[]> {
   try {
@@ -18,49 +32,83 @@ export async function fetchRooms(): Promise<Room[]> {
     }
     const apiResult = await response.json();
 
-    // Path 1: Root is the array
-    if (Array.isArray(apiResult)) {
-      return apiResult as Room[];
+    if (!Array.isArray(apiResult)) {
+      console.warn('Rooms API response is not an array as expected at the root. Returning empty array.', apiResult);
+      return [];
     }
 
-    // Path 2: apiResult is an object, check for common top-level keys that might contain the array
-    if (typeof apiResult === 'object' && apiResult !== null) {
-      const commonTopLevelKeys = ['data', 'results', 'items', 'rooms', 'feed'];
-      for (const key of commonTopLevelKeys) {
-        if (Array.isArray(apiResult[key])) {
-          // If apiResult[key] is the array of rooms
-          return apiResult[key] as Room[];
-        }
-      }
+    // Map the raw API data to our Room interface
+    return apiResult.map((item: any): Room => {
+      const photos: RoomPhoto[] = (item.photos && Array.isArray(item.photos)
+        ? item.photos.map((url: string, index: number) => ({
+            id: index, // Assuming index as id if no specific id is provided per photo
+            url_thumbnail: url, // Using the same URL for all sizes for simplicity
+            url_medium: url,
+            url_original: url,
+            caption: null,
+            order: index,
+          }))
+        : []);
 
-      // Path 3: Check if apiResult.data is an object containing the rooms array under another common nested key
-      // This handles structures like { "data": { "rooms": [...] } }
-      if (typeof apiResult.data === 'object' && apiResult.data !== null) {
-        const commonNestedKeys = ['rooms', 'items', 'results', 'list', 'entities']; // Added 'list', 'entities'
-        for (const key of commonNestedKeys) {
-          if (Array.isArray(apiResult.data[key])) {
-            return apiResult.data[key] as Room[];
-          }
-        }
+      const amenities: Amenity[] = [];
+      if (Array.isArray(item.flat_services)) {
+        item.flat_services.forEach((serviceName: string, index: number) => {
+          amenities.push({
+            id: amenities.length,
+            name: serviceName,
+            key: serviceName.toLowerCase().replace(/\s+/g, '-'),
+            icon_name: null, // Or map based on serviceName if logic is available
+            category_id: 1, // Example category
+            category_name: 'Flat Services'
+          });
+        });
       }
-    }
-    
-    // If no recognized structure is found, log a detailed warning and return an empty array
-    let warningMessage = 'Rooms API response is not in a recognized array structure. Returning empty array.';
-    if (typeof apiResult === 'object' && apiResult !== null) {
-      warningMessage += ` Available top-level keys: ${Object.keys(apiResult).join(', ')}.`;
-      if (typeof apiResult.data === 'object' && apiResult.data !== null) {
-        warningMessage += ` Keys under 'data' object: ${Object.keys(apiResult.data).join(', ')}.`;
+      if (Array.isArray(item.room_services)) {
+        item.room_services.forEach((serviceName: string, index: number) => {
+          amenities.push({
+            id: amenities.length,
+            name: serviceName,
+            key: serviceName.toLowerCase().replace(/\s+/g, '-'),
+            icon_name: null,
+            category_id: 2, // Example category
+            category_name: 'Room Services'
+          });
+        });
       }
-    }
-    // It's often helpful to see the beginning of the problematic response.
-    // Avoid logging overly large objects directly to console in production if they can be huge.
-    // For debugging, logging a snippet or type can be useful.
-    const responseSnippet = JSON.stringify(apiResult)?.substring(0, 500);
-    warningMessage += ` Response snippet: ${responseSnippet}...`;
-    console.warn(warningMessage, apiResult); // Log the full object for detailed inspection if needed
-    
-    return [];
+      
+      const availability: RoomAvailability = {
+        available_now: item.available_now || false,
+        available_from: item.available_date_for_sys || null,
+        minimum_stay_months: item.minimum_stay_months || null, // Assuming field name, not in sample
+        maximum_stay_months: item.maximum_stay_months || null, // Assuming field name, not in sample
+      };
+
+      return {
+        id: item.id,
+        title: item.room_descriptions?.es_ES?.room_title || item.name || item.code || `Habitación ${item.id}`,
+        description: item.room_descriptions?.es_ES?.room_description || null,
+        monthly_price: typeof item.price_rental === 'number' ? item.price_rental : 0,
+        currency_symbol: getCurrencySymbol(item.currency || 'EUR'),
+        currency_code: item.currency || 'EUR',
+        city: item.flat_area || 'Ciudad no especificada',
+        address_1: item.flat_address || 'Dirección no disponible',
+        address_2: null,
+        postcode: item.flat_postcode || null, // Assuming field name, not in sample
+        country: item.flat_country || 'España', // Assuming field name, default to Spain
+        lat: item.flat_lat ? parseFloat(item.flat_lat) : null,
+        lng: item.flat_lon ? parseFloat(item.flat_lon) : null,
+        photos,
+        availability,
+        property_type_name: item.flat_type_name || (item.type === 'room' ? 'Piso Compartido' : 'Propiedad'), // Example mapping
+        room_type_name: item.room_type_name || (item.type === 'room' ? 'Habitación Privada' : 'Espacio'), // Example mapping
+        bedrooms: item.rooms_in_flat ? parseInt(item.rooms_in_flat, 10) : null,
+        bathrooms: item.flat_bathrooms ? parseInt(item.flat_bathrooms, 10) : null,
+        square_meters: item.square_meters || item.room_area || null, // Assuming field name
+        amenities,
+        is_verified: item.is_verified || false, // Assuming field name
+      };
+    });
+
   } catch (error) {
     console.error('Failed to fetch or parse rooms due to an exception:', error);
     if (error instanceof Error && error.message.toLowerCase().includes('failed to fetch')) {

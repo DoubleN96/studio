@@ -1,3 +1,4 @@
+
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
@@ -17,8 +18,20 @@ const nextConfig: NextConfig = {
         pathname: '/**',
       },
       {
-        protocol: 'http',
+        protocol: 'http', // Keep original one just in case
         hostname: 'tripath.colivingsoft.site',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https', // For API data
+        hostname: 'tripath.colivingsoft.site',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https', // For images from the JSON feed
+        hostname: 'tripath.subsys.colivingsoft.app',
         port: '',
         pathname: '/**',
       }
