@@ -1,6 +1,6 @@
 import type { Room } from './types';
 
-const API_URL = 'https://tripath.colivingsoft.site/api/version/2.0/default/rooms/feed';
+const API_URL = 'http://tripath.colivingsoft.site/api/version/2.0/default/rooms/feed';
 
 export async function fetchRooms(): Promise<Room[]> {
   try {
