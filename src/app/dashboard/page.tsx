@@ -41,15 +41,19 @@ export default function DashboardPage() {
   
   const averagePrice = useMemo(() => {
     if (totalRooms === 0) return 0;
-    const sumPrices = allRooms.reduce((acc, room) => acc + room.monthly_price, 0);
-    return sumPrices / totalRooms;
+    const validPriceRooms = allRooms.filter(room => typeof room.monthly_price === 'number');
+    if (validPriceRooms.length === 0) return 0;
+    const sumPrices = validPriceRooms.reduce((acc, room) => acc + room.monthly_price, 0);
+    return sumPrices / validPriceRooms.length;
   }, [allRooms, totalRooms]);
 
-  const roomsAvailableNow = useMemo(() => allRooms.filter(room => room.availability.available_now).length, [allRooms]);
+  const roomsAvailableNow = useMemo(() => allRooms.filter(room => room.availability && room.availability.available_now).length, [allRooms]);
 
   const citiesSummary: CitySummary = useMemo(() => {
     return allRooms.reduce((acc: CitySummary, room) => {
-      acc[room.city] = (acc[room.city] || 0) + 1;
+      if (room.city) { // Ensure city is defined
+        acc[room.city] = (acc[room.city] || 0) + 1;
+      }
       return acc;
     }, {});
   }, [allRooms]);
@@ -134,7 +138,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{verifiedRooms}</div>
-            <p className="text-xs text-muted-foreground">{((verifiedRooms / totalRooms) * 100).toFixed(1)}% del total</p>
+            <p className="text-xs text-muted-foreground">{totalRooms > 0 ? ((verifiedRooms / totalRooms) * 100).toFixed(1) : 0}% del total</p>
           </CardContent>
         </Card>
 
@@ -144,7 +148,7 @@ export default function DashboardPage() {
             <DollarSign className="h-5 w-5 text-accent" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{averagePrice.toFixed(2)} {allRooms[0]?.currency_symbol || '€'}</div>
+            <div className="text-2xl font-bold">{averagePrice.toFixed(2)} {allRooms.find(room => room.currency_symbol)?.currency_symbol || '€'}</div>
             <p className="text-xs text-muted-foreground">Media de precios de alquiler</p>
           </CardContent>
         </Card>
@@ -156,7 +160,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{roomsAvailableNow}</div>
-            <p className="text-xs text-muted-foreground">{((roomsAvailableNow / totalRooms) * 100).toFixed(1)}% listas para ocupar</p>
+            <p className="text-xs text-muted-foreground">{totalRooms > 0 ? ((roomsAvailableNow / totalRooms) * 100).toFixed(1) : 0}% listas para ocupar</p>
           </CardContent>
         </Card>
       </div>
@@ -184,5 +188,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-    
