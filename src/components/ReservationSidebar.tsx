@@ -1,24 +1,53 @@
 
-'use client'; // Required for useState and event handlers
+'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation'; // For client-side navigation
-import type { Room } from '@/lib/types';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import type { Room, GeneralContractSettings } from '@/lib/types';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import ReservationSummaryDialog from '@/components/ReservationSummaryDialog'; // Import the dialog
-import { CalendarDays, Info, ShieldCheck, Eye } from 'lucide-react';
+import ReservationSummaryDialog from '@/components/ReservationSummaryDialog';
+import { CalendarDays, Info, ShieldCheck, Eye, CalendarIcon as LucideCalendarIcon } from 'lucide-react';
+import { getFromLocalStorage } from '@/lib/localStorageUtils';
+import { format, parseISO, isBefore, addMonths, differenceInCalendarMonths, startOfDay, formatISO } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
+
+const LOCAL_STORAGE_CONTRACT_SETTINGS_KEY = 'chattyRentalContractSettings';
 
 interface ReservationSidebarProps {
   room: Room;
+  selectedCheckInDate: Date | undefined;
+  selectedCheckOutDate: Date | undefined;
+  onCheckInDateSelect: (date: Date | undefined) => void;
+  onCheckOutDateSelect: (date: Date | undefined) => void;
 }
 
-export default function ReservationSidebar({ room }: ReservationSidebarProps) {
+export default function ReservationSidebar({ 
+  room, 
+  selectedCheckInDate, 
+  selectedCheckOutDate,
+  onCheckInDateSelect,
+  onCheckOutDateSelect
+}: ReservationSidebarProps) {
   const router = useRouter();
   const [isSummaryDialogOpen, setIsSummaryDialogOpen] = useState(false);
+  const [contractSettings, setContractSettings] = useState<GeneralContractSettings | null>(null);
 
-  // Mock data for illustration, as full pricing logic is complex
-  const platformFee = room.monthly_price * 0.1; // Example platform fee
+  useEffect(() => {
+    const settings = getFromLocalStorage<GeneralContractSettings>(
+      LOCAL_STORAGE_CONTRACT_SETTINGS_KEY,
+      { serviceFeePercentage: 100 } as GeneralContractSettings // Provide a default if not found
+    );
+    setContractSettings(settings);
+  }, []);
+
+  const serviceFeePercentage = contractSettings?.serviceFeePercentage ?? 100; // Default to 100% if not set
+  const platformFee = room.monthly_price * (serviceFeePercentage / 100);
   const totalFirstMonth = room.monthly_price + platformFee;
 
   const handleOpenSummaryDialog = () => {
@@ -26,8 +55,30 @@ export default function ReservationSidebar({ room }: ReservationSidebarProps) {
   };
 
   const handleNavigateToReservation = () => {
-    router.push(`/reserve/${room.id}`);
+    let queryString = '';
+    if (selectedCheckInDate) {
+      queryString += `?checkIn=${formatISO(selectedCheckInDate, { representation: 'date' })}`;
+      if (selectedCheckOutDate) {
+        queryString += `&checkOut=${formatISO(selectedCheckOutDate, { representation: 'date' })}`;
+      } else if (room.availability.minimum_stay_months) {
+        // If no checkout, but min stay exists, calculate a default checkout
+        const defaultCheckout = addMonths(selectedCheckInDate, room.availability.minimum_stay_months);
+        queryString += `&checkOut=${formatISO(defaultCheckout, { representation: 'date' })}`;
+      }
+    }
+    router.push(`/reserve/${room.id}${queryString}`);
   };
+  
+  const minCheckInDate = room.availability.available_now 
+    ? startOfDay(new Date()) 
+    : room.availability.available_from 
+    ? startOfDay(parseISO(room.availability.available_from)) 
+    : startOfDay(new Date());
+
+  // Ensure minCheckInDate is not in the past
+   const today = startOfDay(new Date());
+   const effectiveMinCheckInDate = isBefore(minCheckInDate, today) ? today : minCheckInDate;
+
 
   return (
     <>
@@ -38,34 +89,89 @@ export default function ReservationSidebar({ room }: ReservationSidebarProps) {
         <CardContent className="space-y-4">
           <div>
             <p className="text-3xl font-bold text-primary">
-              {room.monthly_price}{room.currency_symbol}
+              {room.monthly_price.toLocaleString('es-ES', { style: 'currency', currency: room.currency_code || 'EUR' })}
               <span className="text-base font-normal text-muted-foreground">/mes</span>
             </p>
           </div>
           
-          <div className="border p-3 rounded-md">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-sm font-medium">Fecha de Entrada</span>
-              <span className="text-sm text-muted-foreground">A seleccionar</span>
+          <div className="border p-3 rounded-md space-y-3">
+            <div>
+              <Label htmlFor="checkInDateSidebar" className="text-sm font-medium">Fecha de Entrada</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    id="checkInDateSidebar"
+                    variant={"outline"}
+                    className={cn(
+                      "w-full justify-start text-left font-normal mt-1",
+                      !selectedCheckInDate && "text-muted-foreground"
+                    )}
+                  >
+                    <LucideCalendarIcon className="mr-2 h-4 w-4" />
+                    {selectedCheckInDate ? format(selectedCheckInDate, "PPP", { locale: es }) : <span>Selecciona entrada</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar
+                    mode="single"
+                    selected={selectedCheckInDate}
+                    onSelect={onCheckInDateSelect}
+                    initialFocus
+                    locale={es}
+                    disabled={(date) => isBefore(date, effectiveMinCheckInDate) || (selectedCheckOutDate && isAfter(date, selectedCheckOutDate))}
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm font-medium">Duración</span>
-              <span className="text-sm text-muted-foreground">A seleccionar</span>
+            <div>
+              <Label htmlFor="checkOutDateSidebar" className="text-sm font-medium">Fecha de Salida</Label>
+               <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    id="checkOutDateSidebar"
+                    variant={"outline"}
+                    disabled={!selectedCheckInDate}
+                    className={cn(
+                      "w-full justify-start text-left font-normal mt-1",
+                      !selectedCheckOutDate && "text-muted-foreground"
+                    )}
+                  >
+                    <LucideCalendarIcon className="mr-2 h-4 w-4" />
+                    {selectedCheckOutDate ? format(selectedCheckOutDate, "PPP", { locale: es }) : <span>Selecciona salida</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar
+                    mode="single"
+                    selected={selectedCheckOutDate}
+                    onSelect={onCheckOutDateSelect}
+                    initialFocus
+                    locale={es}
+                    disabled={(date) => !selectedCheckInDate || isBefore(date, selectedCheckInDate)}
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
 
           <div className="border-t pt-4 space-y-2">
             <div className="flex justify-between text-sm">
               <span>Alquiler primer mes</span>
-              <span>{room.monthly_price.toFixed(2)}{room.currency_symbol}</span>
+              <span>{room.monthly_price.toLocaleString('es-ES', { style: 'currency', currency: room.currency_code || 'EUR' })}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span>Tarifa de servicio (ejemplo)</span>
-              <span>{platformFee.toFixed(2)}{room.currency_symbol}</span>
+              <span>Tarifa de servicio ({serviceFeePercentage}%)</span>
+              <span>{platformFee.toLocaleString('es-ES', { style: 'currency', currency: room.currency_code || 'EUR' })}</span>
             </div>
+             {selectedCheckInDate && selectedCheckOutDate && isBefore(selectedCheckInDate, selectedCheckOutDate) && (
+              <div className="flex justify-between text-sm font-medium">
+                <span>Duración Total</span>
+                <span>{differenceInCalendarMonths(selectedCheckOutDate, selectedCheckInDate) || 1} mes(es)</span>
+              </div>
+            )}
             <div className="flex justify-between font-semibold text-lg">
               <span>Total Estimado (primer pago)</span>
-              <span>{totalFirstMonth.toFixed(2)}{room.currency_symbol}</span>
+              <span>{totalFirstMonth.toLocaleString('es-ES', { style: 'currency', currency: room.currency_code || 'EUR' })}</span>
             </div>
             <p className="text-xs text-muted-foreground flex items-start mt-1">
               <Info size={14} className="mr-1 mt-0.5 shrink-0" />
@@ -77,7 +183,8 @@ export default function ReservationSidebar({ room }: ReservationSidebarProps) {
           <Button 
             size="lg" 
             className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
-            onClick={handleNavigateToReservation} 
+            onClick={handleNavigateToReservation}
+            disabled={!selectedCheckInDate} // Require at least check-in date
           >
             Reservar Ahora
           </Button>
@@ -97,13 +204,16 @@ export default function ReservationSidebar({ room }: ReservationSidebarProps) {
         </CardFooter>
       </Card>
 
-      {/* Reservation Summary Dialog */}
       <ReservationSummaryDialog
         room={room}
         open={isSummaryDialogOpen}
         onOpenChange={setIsSummaryDialogOpen}
-        onConfirm={handleNavigateToReservation} // The dialog's confirm button will also navigate
+        onConfirm={handleNavigateToReservation}
+        selectedCheckInDate={selectedCheckInDate}
+        selectedCheckOutDate={selectedCheckOutDate}
       />
     </>
   );
 }
+
+    

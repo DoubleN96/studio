@@ -15,9 +15,10 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from "@/hooks/use-toast";
-import { format, addMonths, parseISO } from 'date-fns';
+import { format, addMonths, parseISO, differenceInCalendarMonths, startOfDay, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { CalendarIcon, User, Mail, Phone, UploadCloud, CreditCard, FileText, ArrowLeft, ArrowRight, Briefcase, GraduationCap, HomeIcon, Landmark, ShieldQuestion, UsersIcon, BookUser, Globe, Building } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
 
 // Schema for Step 1
 const step1Schema = z.object({
@@ -38,12 +39,11 @@ const step3Schema = z.object({
   passportIdNumber: z.string().min(1, "El número de pasaporte/ID es obligatorio."),
   originCountry: z.string().min(1, "El país de origen es obligatorio."),
   iban: z.string().min(1, "El IBAN es obligatorio."),
-  bic: z.string().optional(), // BIC is optional based on form
+  bic: z.string().optional(), 
   emergencyContact: z.string().min(1, "El contacto de emergencia es obligatorio. Formato: Nombre, Email, Teléfono."),
   universityWorkCenter: z.string().optional(),
 });
 
-// Combined type for react-hook-form, covering all validated fields
 type ReservationFormData = z.infer<typeof step1Schema> & Partial<z.infer<typeof step3Schema>>;
 
 interface ReservationFormProps {
@@ -58,18 +58,46 @@ const STEPS = [
 ];
 
 export default function ReservationForm({ room }: ReservationFormProps) {
+  const searchParams = useSearchParams();
   const [currentStep, setCurrentStep] = useState(1);
+  
+  // Initial state from room availability or URL params
+  const getInitialStartDate = () => {
+    const urlCheckIn = searchParams.get('checkIn');
+    if (urlCheckIn) {
+      const parsedUrlDate = startOfDay(parseISO(urlCheckIn));
+      if (isValid(parsedUrlDate)) return parsedUrlDate;
+    }
+    return room.availability.available_from ? startOfDay(parseISO(room.availability.available_from)) : startOfDay(new Date());
+  };
+
+  const getInitialDuration = () => {
+    const urlCheckIn = searchParams.get('checkIn');
+    const urlCheckOut = searchParams.get('checkOut');
+    if (urlCheckIn && urlCheckOut) {
+      const startDate = startOfDay(parseISO(urlCheckIn));
+      const endDate = startOfDay(parseISO(urlCheckOut));
+      if (isValid(startDate) && isValid(endDate) && !isBefore(endDate,startDate)) {
+        const months = differenceInCalendarMonths(endDate, startDate);
+        return Math.max(1, months); // Ensure at least 1 month
+      }
+    }
+    return room.availability.minimum_stay_months || 1;
+  };
+
+
   const [reservationDetails, setReservationDetails] = useState<ReservationDetailsType>({
-    duration: room.availability.minimum_stay_months || 1,
-    startDate: room.availability.available_from ? parseISO(room.availability.available_from) : new Date(),
+    duration: getInitialDuration(),
+    startDate: getInitialStartDate(),
     bookedRoom: room.code || room.title,
   });
+
   const [passportFile, setPassportFile] = useState<File | null>(null);
   const [proofFile, setProofFile] = useState<File | null>(null);
   const { toast } = useToast();
 
-  const { control, handleSubmit, trigger, getValues, formState: { errors } } = useForm<ReservationFormData>({
-    resolver: zodResolver(currentStep === 1 ? step1Schema : step3Schema), // Schema changes based on step
+  const { control, handleSubmit, trigger, getValues, setValue, watch, formState: { errors } } = useForm<ReservationFormData>({
+    resolver: zodResolver(currentStep === 1 ? step1Schema : step3Schema),
     defaultValues: {
       startDate: reservationDetails.startDate,
       duration: reservationDetails.duration,
@@ -77,29 +105,54 @@ export default function ReservationForm({ room }: ReservationFormProps) {
       lastName: '',
       email: '',
       phone: '',
-      birthDate: undefined,
-      gender: '',
-      studyOrWork: '',
-      currentAddress: '',
-      passportIdNumber: '',
-      originCountry: '',
-      iban: '',
-      bic: '',
-      emergencyContact: '',
-      universityWorkCenter: '',
+      // Step 3 fields will be undefined initially or filled later
     }
   });
   
+  // Watch for changes in startDate and duration to update reservationDetails for display
+  const watchedStartDate = watch("startDate");
+  const watchedDuration = watch("duration");
+
   useEffect(() => {
-    // Pre-fill check-in/out dates for step 3 if startDate and duration are set
-    if (reservationDetails.startDate && reservationDetails.duration) {
+    if (watchedStartDate && watchedDuration) {
       setReservationDetails(prev => ({
         ...prev,
-        checkInDate: prev.startDate,
-        checkOutDate: addMonths(prev.startDate!, prev.duration!)
+        startDate: watchedStartDate,
+        duration: watchedDuration,
+        checkInDate: watchedStartDate,
+        checkOutDate: addMonths(watchedStartDate, watchedDuration)
+      }));
+    } else if (watchedStartDate) {
+       setReservationDetails(prev => ({
+        ...prev,
+        startDate: watchedStartDate,
+        checkInDate: watchedStartDate,
+        checkOutDate: undefined // Clear checkout if duration is not set
       }));
     }
-  }, [reservationDetails.startDate, reservationDetails.duration]);
+  }, [watchedStartDate, watchedDuration]);
+  
+  // Effect to set form values if URL params change after initial load (though less common for this page)
+  useEffect(() => {
+    const urlCheckIn = searchParams.get('checkIn');
+    const urlCheckOut = searchParams.get('checkOut');
+
+    if (urlCheckIn) {
+        const parsedUrlCheckIn = startOfDay(parseISO(urlCheckIn));
+        if (isValid(parsedUrlCheckIn)) {
+            setValue('startDate', parsedUrlCheckIn, { shouldValidate: true });
+             if (urlCheckOut) {
+                const parsedUrlCheckOut = startOfDay(parseISO(urlCheckOut));
+                if (isValid(parsedUrlCheckOut) && !isBefore(parsedUrlCheckOut, parsedUrlCheckIn)) {
+                    const months = differenceInCalendarMonths(parsedUrlCheckOut, parsedUrlCheckIn);
+                    setValue('duration', Math.max(1, months), { shouldValidate: true });
+                }
+            } else {
+                 setValue('duration', room.availability.minimum_stay_months || 1, { shouldValidate: true });
+            }
+        }
+    }
+  }, [searchParams, setValue, room.availability.minimum_stay_months]);
 
 
   const nextStep = () => setCurrentStep((prev) => Math.min(prev + 1, STEPS.length));
@@ -126,8 +179,8 @@ export default function ReservationForm({ room }: ReservationFormProps) {
       lastName: data.lastName,
       email: data.email,
       phone: data.phone,
-      checkInDate: data.startDate, // Set checkInDate for later steps
-      checkOutDate: addMonths(data.startDate!, data.duration!), // Set checkOutDate
+      checkInDate: data.startDate, 
+      checkOutDate: addMonths(data.startDate!, data.duration!), 
     }));
     nextStep();
   };
@@ -137,12 +190,6 @@ export default function ReservationForm({ room }: ReservationFormProps) {
       toast({ variant: "destructive", title: "Archivo Requerido", description: "Por favor, sube una foto de tu pasaporte/ID." });
       return;
     }
-    // Proof of study/work is optional based on Google Form wording, but can be made mandatory here if needed.
-    // if (!proofFile) {
-    //   toast({ variant: "destructive", title: "Archivo Requerido", description: "Por favor, sube tu justificante de estudios o trabajo." });
-    //   return;
-    // }
-
     setReservationDetails(prev => ({
       ...prev,
       birthDate: data.birthDate,
@@ -161,12 +208,17 @@ export default function ReservationForm({ room }: ReservationFormProps) {
     nextStep();
   };
 
-
   const progressPercentage = (currentStep / STEPS.length) * 100;
 
   const calculatedCheckOutDate = reservationDetails.startDate && reservationDetails.duration
     ? addMonths(reservationDetails.startDate, reservationDetails.duration)
     : undefined;
+    
+  const minCalendarDate = room.availability.available_now 
+    ? startOfDay(new Date()) 
+    : room.availability.available_from 
+    ? startOfDay(parseISO(room.availability.available_from)) 
+    : startOfDay(new Date(new Date().setDate(new Date().getDate() -1))); // fallback to yesterday to allow today
 
   return (
     <Card className="w-full max-w-2xl mx-auto shadow-2xl">
@@ -178,9 +230,8 @@ export default function ReservationForm({ room }: ReservationFormProps) {
         <Progress value={progressPercentage} className="mt-2" />
       </CardHeader>
       
-      <form onSubmit={handleSubmit(currentStep === 1 ? handleStep1Submit : handleStep3Submit)}>
+      <form onSubmit={handleSubmit(currentStep === 1 ? handleStep1Submit : currentStep === 3 ? handleStep3Submit : (e) => e.preventDefault())}>
         <CardContent>
-          {/* Step 1: Dates & Initial Info */}
           {currentStep === 1 && (
             <div className="space-y-6">
               <div>
@@ -200,13 +251,10 @@ export default function ReservationForm({ room }: ReservationFormProps) {
                         <Calendar
                           mode="single"
                           selected={field.value}
-                          onSelect={(date) => {
-                            field.onChange(date);
-                            setReservationDetails(prev => ({ ...prev, startDate: date }));
-                          }}
+                          onSelect={(date) => field.onChange(date)}
                           initialFocus
                           locale={es}
-                          disabled={{ before: room.availability.available_from ? parseISO(room.availability.available_from) : new Date(new Date().setDate(new Date().getDate() -1)) }}
+                          disabled={{ before: minCalendarDate }}
                         />
                       </PopoverContent>
                     </Popover>
@@ -228,7 +276,6 @@ export default function ReservationForm({ room }: ReservationFormProps) {
                       onChange={(e) => {
                         const val = parseInt(e.target.value, 10);
                         field.onChange(isNaN(val) ? '' : val);
-                        if (!isNaN(val)) setReservationDetails(prev => ({ ...prev, duration: val }));
                       }}
                       min={room.availability.minimum_stay_months || 1}
                       max={room.availability.maximum_stay_months || 120}
@@ -263,7 +310,6 @@ export default function ReservationForm({ room }: ReservationFormProps) {
             </div>
           )}
 
-          {/* Step 2: Payment Page (Mock) */}
           {currentStep === 2 && (
             <div className="text-center space-y-4">
               <CreditCard className="mx-auto h-16 w-16 text-primary" />
@@ -273,20 +319,18 @@ export default function ReservationForm({ room }: ReservationFormProps) {
               <Button size="lg" onClick={() => {
                 toast({ title: "Pago Simulado Exitoso", description: "Redirigiendo a información adicional..." });
                 nextStep();
-              }} className="w-full" type="button"> {/* type="button" to prevent form submission */}
+              }} className="w-full" type="button">
                 Proceder al Pago Simulado
               </Button>
             </div>
           )}
 
-          {/* Step 3: Additional Information */}
           {currentStep === 3 && (
             <div className="space-y-6">
               <div>
                 <Label htmlFor="bookedRoom" className="flex items-center mb-1"><HomeIcon className="mr-2 h-4 w-4 text-accent" />Habitación Reservada</Label>
-                <Input id="bookedRoom" value={reservationDetails.bookedRoom} readOnly className="bg-muted"/>
+                <Input id="bookedRoom" value={reservationDetails.bookedRoom || room.title} readOnly className="bg-muted"/>
               </div>
-
               <div>
                 <Label htmlFor="birthDate" className="block text-sm font-medium mb-1">Fecha de Nacimiento</Label>
                  <Controller
@@ -317,7 +361,6 @@ export default function ReservationForm({ room }: ReservationFormProps) {
                 />
                 {errors.birthDate && <p className="text-sm text-destructive mt-1">{errors.birthDate.message}</p>}
               </div>
-              
               <div>
                  <Label className="flex items-center mb-2"><UsersIcon className="mr-2 h-4 w-4 text-accent" />Género</Label>
                 <Controller
@@ -333,7 +376,6 @@ export default function ReservationForm({ room }: ReservationFormProps) {
                 />
                  {errors.gender && <p className="text-sm text-destructive mt-1">{errors.gender.message}</p>}
               </div>
-
                <div>
                 <Label className="flex items-center mb-2"><ShieldQuestion className="mr-2 h-4 w-4 text-accent" />¿Estudias o Trabajas?</Label>
                  <Controller
@@ -350,7 +392,6 @@ export default function ReservationForm({ room }: ReservationFormProps) {
                 />
                 {errors.studyOrWork && <p className="text-sm text-destructive mt-1">{errors.studyOrWork.message}</p>}
               </div>
-
               <div>
                 <Label htmlFor="currentAddress" className="flex items-center mb-1"><HomeIcon className="mr-2 h-4 w-4 text-accent" />Dirección Actual</Label>
                 <Controller name="currentAddress" control={control} render={({ field }) => <Input {...field} id="currentAddress" placeholder="Calle Número, CP Ciudad, País" />} />
@@ -367,11 +408,11 @@ export default function ReservationForm({ room }: ReservationFormProps) {
                  {errors.originCountry && <p className="text-sm text-destructive mt-1">{errors.originCountry.message}</p>}
               </div>
                <div>
-                <Label htmlFor="checkInDateDisplay" className="flex items-center mb-1"><CalendarIcon className="mr-2 h-4 w-4 text-accent" />Check-IN Estimado</Label>
+                <Label htmlFor="checkInDateDisplay" className="flex items-center mb-1"><CalendarIcon className="mr-2 h-4 w-4 text-accent" />Check-IN Confirmado</Label>
                 <Input id="checkInDateDisplay" value={reservationDetails.checkInDate ? format(reservationDetails.checkInDate, "PPP", { locale: es }) : 'N/A'} readOnly  className="bg-muted"/>
               </div>
               <div>
-                <Label htmlFor="checkOutDateDisplay" className="flex items-center mb-1"><CalendarIcon className="mr-2 h-4 w-4 text-accent" />Check-OUT Estimado</Label>
+                <Label htmlFor="checkOutDateDisplay" className="flex items-center mb-1"><CalendarIcon className="mr-2 h-4 w-4 text-accent" />Check-OUT Confirmado</Label>
                 <Input id="checkOutDateDisplay" value={reservationDetails.checkOutDate ? format(reservationDetails.checkOutDate, "PPP", { locale: es }) : 'N/A'} readOnly className="bg-muted"/>
               </div>
               <div>
@@ -409,7 +450,6 @@ export default function ReservationForm({ room }: ReservationFormProps) {
             </div>
           )}
 
-          {/* Step 4: Contract Preview & Download (Mock) */}
           {currentStep === 4 && (
             <div className="text-center space-y-4">
               <FileText className="mx-auto h-16 w-16 text-green-600" />
@@ -450,28 +490,21 @@ export default function ReservationForm({ room }: ReservationFormProps) {
             <ArrowLeft className="mr-2 h-4 w-4" /> Anterior
           </Button>
           
-          {currentStep === 1 && (
-            <Button type="submit"> {/* Submits Step 1 form */}
+          {currentStep < STEPS.length -1 && currentStep !== 2 && ( // For step 1 and 3
+            <Button type="submit"> 
               Siguiente <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           )}
 
-          {currentStep === 2 && ( // No submit button needed here, handled by "Proceder al Pago Simulado"
-             <Button onClick={nextStep} type="button"> {/* Manually go to next step after mock payment interaction */}
-              Siguiente (Tras Pago) <ArrowRight className="ml-2 h-4 w-4" />
+          {currentStep === 2 && ( // For step 2 (Payment simulation)
+             <Button onClick={nextStep} type="button"> 
+              Siguiente (Simular Pago) <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           )}
 
-          {currentStep === 3 && (
-             <Button type="submit"> {/* Submits Step 3 form */}
-              Siguiente <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          )}
-
-          {currentStep === STEPS.length && (
+          {currentStep === STEPS.length && ( // For final step
               <Button onClick={() => {
                  toast({ title: "Proceso Simulado Completo", description: "¡Gracias por utilizar ChattyRental!" });
-                 // Potentially redirect or reset form here
               }} type="button">
                   Finalizar
               </Button>
@@ -481,3 +514,5 @@ export default function ReservationForm({ room }: ReservationFormProps) {
     </Card>
   );
 }
+
+    

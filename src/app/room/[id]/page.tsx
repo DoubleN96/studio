@@ -1,14 +1,20 @@
 
+'use client';
+
+import { useState, useEffect } from 'react';
 import { fetchRoomById } from '@/lib/api';
 import type { Room } from '@/lib/types';
 import ImageCarousel from '@/components/ImageCarousel';
 import ReservationSidebar from '@/components/ReservationSidebar';
-import AvailabilityDisplay from '@/components/AvailabilityDisplay'; // Import the new component
+import AvailabilityDisplay from '@/components/AvailabilityDisplay';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { MapPin, Building, BedDouble, Bath, Users, Maximize, CheckCircle2, Home, Tag, Edit3, Info } from 'lucide-react';
+import { MapPin, Home, Maximize, BedDouble, Bath, CheckCircle2, Edit3, Info, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { parseISO, isBefore, startOfDay } from 'date-fns';
+import { Skeleton } from '@/components/ui/skeleton';
+
 
 interface RoomPageParams {
   params: {
@@ -19,7 +25,6 @@ interface RoomPageParams {
 // Helper to render amenities
 const AmenityItem = ({ amenity }: { amenity: { name: string, icon_name?: string | null } }) => (
   <li className="flex items-center text-sm bg-muted p-2 rounded-md">
-    {/* Basic icon mapping, extend as needed */}
     {amenity.icon_name === 'wifi' && <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2 text-accent"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>}
     {amenity.icon_name !== 'wifi' && <CheckCircle2 className="mr-2 h-4 w-4 text-accent" />}
     {amenity.name}
@@ -27,21 +32,137 @@ const AmenityItem = ({ amenity }: { amenity: { name: string, icon_name?: string 
 );
 
 
-export async function generateMetadata({ params }: RoomPageParams) {
-  const room = await fetchRoomById(Number(params.id));
-  if (!room) {
-    return { title: 'Habitación no encontrada' };
-  }
-  return {
-    title: `${room.title} - ChattyRental`,
-    description: room.description || `Detalles sobre ${room.title}`,
-  };
-}
+// Note: generateMetadata cannot be 'use client', so we keep it separate or fetch data differently if needed for metadata.
+// For simplicity, if this component is fully client-side, metadata might need static values or a server-side wrapper.
+// For now, assuming metadata is handled as before or adapted for client-side data fetching if necessary.
 
-
-export default async function RoomPage({ params }: RoomPageParams) {
+export default function RoomPage({ params }: RoomPageParams) {
   const roomId = Number(params.id);
-  const room = await fetchRoomById(roomId);
+  const [room, setRoom] = useState<Room | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [selectedCheckInDate, setSelectedCheckInDate] = useState<Date | undefined>(undefined);
+  const [selectedCheckOutDate, setSelectedCheckOutDate] = useState<Date | undefined>(undefined);
+
+  useEffect(() => {
+    async function loadRoomData() {
+      try {
+        setIsLoading(true);
+        const roomData = await fetchRoomById(roomId);
+        if (roomData) {
+          setRoom(roomData);
+          // Initialize selectedCheckInDate based on room availability
+          if (roomData.availability) {
+            const initialDate = roomData.availability.available_now
+              ? startOfDay(new Date())
+              : roomData.availability.available_from
+              ? startOfDay(parseISO(roomData.availability.available_from))
+              : undefined;
+            
+            // Ensure initialDate is not in the past if available_now is false but available_from is past
+            const today = startOfDay(new Date());
+            if (initialDate && isBefore(initialDate, today) && !roomData.availability.available_now) {
+                 setSelectedCheckInDate(today > initialDate ? today : initialDate);
+            } else if (initialDate) {
+                 setSelectedCheckInDate(initialDate);
+            }
+
+          }
+        } else {
+          setError('Habitación no encontrada.');
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Error al cargar la habitación.');
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadRoomData();
+  }, [roomId]);
+
+  const handleCheckInDateSelect = (date: Date | undefined) => {
+    setSelectedCheckInDate(date);
+    if (date && selectedCheckOutDate && isBefore(selectedCheckOutDate, date)) {
+      setSelectedCheckOutDate(undefined); 
+    }
+  };
+
+  const handleCheckOutDateSelect = (date: Date | undefined) => {
+    setSelectedCheckOutDate(date);
+  };
+  
+  const handleAvailabilityDisplayDateSelect = (date: Date) => {
+    const newCheckIn = startOfDay(date);
+    const today = startOfDay(new Date());
+    let effectiveInitialDate = newCheckIn;
+
+    if (room?.availability) {
+        const roomAvailableFrom = room.availability.available_from ? startOfDay(parseISO(room.availability.available_from)) : null;
+        
+        if (room.availability.available_now) {
+            // If available now, can select from today onwards within the clicked month
+            if (isBefore(newCheckIn,today)) effectiveInitialDate = today;
+
+        } else if (roomAvailableFrom) {
+            // If not available now, but has an available_from date
+            if (isBefore(newCheckIn, roomAvailableFrom)) effectiveInitialDate = roomAvailableFrom;
+        }
+    }
+    
+    setSelectedCheckInDate(effectiveInitialDate);
+    if (selectedCheckOutDate && isBefore(selectedCheckOutDate, effectiveInitialDate)) {
+      setSelectedCheckOutDate(undefined);
+    }
+  };
+
+
+  if (isLoading) {
+    return (
+      <div className="max-w-6xl mx-auto" suppressHydrationWarning={true}>
+        <div className="md:flex md:gap-8">
+          <div className="md:w-2/3 space-y-6">
+            <Skeleton className="aspect-video w-full rounded-lg" />
+            <CardSkeleton />
+            <CardSkeleton />
+          </div>
+          <div className="md:w-1/3 mt-8 md:mt-0">
+            <Skeleton className="h-96 w-full rounded-lg sticky top-24" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  const CardSkeleton = () => (
+    <div className="bg-card p-6 rounded-lg shadow-md space-y-4">
+      <Skeleton className="h-8 w-3/4" />
+      <Skeleton className="h-4 w-1/2" />
+      <Skeleton className="h-4 w-1/3" />
+      <Separator className="my-6" />
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+        <Skeleton className="h-16 w-full" />
+        <Skeleton className="h-16 w-full" />
+        <Skeleton className="h-16 w-full" />
+      </div>
+      <Skeleton className="h-20 w-full" />
+    </div>
+  );
+
+
+  if (error) {
+    return (
+      <div className="text-center py-10 flex flex-col items-center justify-center" suppressHydrationWarning={true}>
+        <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+        <h1 className="text-2xl font-semibold mb-4">Error</h1>
+        <p className="text-muted-foreground mb-6">{error}</p>
+        <Button asChild variant="outline">
+          <Link href="/">Volver al Inicio</Link>
+        </Button>
+      </div>
+    );
+  }
 
   if (!room) {
     return (
@@ -116,8 +237,11 @@ export default async function RoomPage({ params }: RoomPageParams) {
             )}
           </div>
 
-          {/* New Availability Display Section */}
-          <AvailabilityDisplay availability={room.availability} />
+          <AvailabilityDisplay 
+            availability={room.availability} 
+            selectedCheckInDate={selectedCheckInDate}
+            onDateSelect={handleAvailabilityDisplayDateSelect} 
+          />
 
           {room.amenities && room.amenities.length > 0 && (
             <div className="bg-card p-6 rounded-lg shadow-md mt-6">
@@ -129,20 +253,21 @@ export default async function RoomPage({ params }: RoomPageParams) {
               </ul>
             </div>
           )}
-          
-          {/* Placeholder for Floorplan/Video - if data becomes available */}
-          {/* <div className="bg-card p-6 rounded-lg shadow-md">
-            <h2 className="text-xl font-semibold mb-2">Plano y Video</h2>
-            <p className="text-muted-foreground">Planos y videos estarán disponibles pronto.</p>
-          </div> */}
-
         </div>
 
         {/* Sticky Sidebar */}
         <div className="md:w-1/3 mt-8 md:mt-0">
-          <ReservationSidebar room={room} />
+          <ReservationSidebar 
+            room={room} 
+            selectedCheckInDate={selectedCheckInDate}
+            selectedCheckOutDate={selectedCheckOutDate}
+            onCheckInDateSelect={handleCheckInDateSelect}
+            onCheckOutDateSelect={handleCheckOutDateSelect}
+          />
         </div>
       </div>
     </div>
   );
 }
+
+    
