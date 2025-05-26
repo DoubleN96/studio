@@ -27,7 +27,7 @@ export interface Amenity {
 
 export interface Room {
   id: number;
-  code?: string; // Added for pre-filling booked room
+  code?: string;
   title: string;
   description: string | null;
   monthly_price: number;
@@ -78,4 +78,19 @@ export interface ReservationDetailsType {
   // Mock file tracking (not part of form data directly)
   passportIdFile?: File | null;
   proofOfStudiesWorkFile?: File | null;
+}
+
+// For General Contract Settings on Dashboard
+export interface GeneralContractSettings {
+  companyName: string;
+  companyCif: string;
+  representativeName: string;
+  representativeDni: string;
+  contactEmail: string;
+  supplyCostsClause: string; // Text area for longer clause
+  lateRentPenaltyClause: string; // Text area
+  lateCheckoutPenaltyClause: string; // Text area
+  inventoryDamagePolicy: string; // Text area
+  noisePolicyGuestLimit: number;
+  depositReturnTimeframe: string; // e.g., "dos meses", "60 días"
 }
