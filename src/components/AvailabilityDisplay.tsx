@@ -4,7 +4,7 @@
 import type { RoomAvailability } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { format, getMonth, getYear, isWithinInterval, parseISO, startOfMonth, endOfMonth, addMonths, isBefore, isEqual, startOfDay, isSameMonth, isSameYear, max, min, isAfter } from 'date-fns';
+import { format, getMonth, getYear, isWithinInterval, parseISO, startOfMonth, endOfMonth, addMonths, isBefore, isEqual, startOfDay, isSameMonth, isSameYear, max, min, isAfter, endOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Info, CalendarDays } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -44,11 +44,15 @@ const isMonthGenerallyAvailable = (year: number, monthIndex: number, unavailable
       // OR *spans across* this month, then it's affected.
       // A month is occupied if unavailableStart <= monthEnd and unavailableEnd >= monthStart.
        if (!isAfter(unavailableStart, monthEnd) && !isBefore(unavailableEnd, monthStart)) {
-         return false; // The month is impacted by an unavailable range
+         // Check if the entire month is within an unavailable range
+         if ((isBefore(unavailableStart, monthStart) || isEqual(unavailableStart, monthStart)) && 
+             (isAfter(unavailableEnd, monthEnd) || isEqual(unavailableEnd, monthEnd))) {
+           return false; 
+         }
        }
     }
   }
-  return true; // No full blockage found
+  return true; // No full blockage found or only partial blockage
 };
 
 
@@ -90,15 +94,23 @@ export default function AvailabilityDisplay({ availability, selectedCheckInDate,
   
   const handleMonthClick = (year: number, monthIndex: number) => {
     const clickedMonthStart = startOfDay(new Date(year, monthIndex, 1));
-    // Select the later of room's first overall available date or the start of the clicked month,
-    // but not before today if available_now.
     let potentialCheckInDate = clickedMonthStart;
 
     if (isBefore(potentialCheckInDate, firstOverallAvailableDate)) {
         potentialCheckInDate = firstOverallAvailableDate;
     }
     
-    if (isMonthGenerallyAvailable(year, monthIndex, parsedUnavailableRanges, firstOverallAvailableDate)) {
+    // Check if the *specific potentialCheckInDate* is within any unavailable range.
+    // This is more precise than only relying on isMonthGenerallyAvailable for the click action.
+    let dateIsActuallyAvailable = true;
+    for (const [unavailableStart, unavailableEnd] of parsedUnavailableRanges) {
+        if (isWithinInterval(potentialCheckInDate, { start: unavailableStart, end: unavailableEnd })) {
+            dateIsActuallyAvailable = false;
+            break;
+        }
+    }
+
+    if (isMonthGenerallyAvailable(year, monthIndex, parsedUnavailableRanges, firstOverallAvailableDate) && dateIsActuallyAvailable) {
       onDateSelect(potentialCheckInDate);
     }
   };
@@ -159,7 +171,7 @@ export default function AvailabilityDisplay({ availability, selectedCheckInDate,
                   return (
                     <button
                       key={`${year}-${monthIndex}`}
-                      onClick={() => isGenerallyAvailable && handleMonthClick(year, monthIndex)}
+                      onClick={() => handleMonthClick(year, monthIndex)}
                       disabled={!isGenerallyAvailable}
                       className={cn(`p-2 text-xs font-medium rounded text-center border transition-all
                         focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1`,
@@ -194,5 +206,3 @@ export default function AvailabilityDisplay({ availability, selectedCheckInDate,
     </Card>
   );
 }
-
-    
