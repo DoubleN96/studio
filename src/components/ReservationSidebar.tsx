@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Room, GeneralContractSettings } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -13,7 +13,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import ReservationSummaryDialog from '@/components/ReservationSummaryDialog';
 import { CalendarDays, Info, ShieldCheck, Eye, CalendarIcon as LucideCalendarIcon } from 'lucide-react';
 import { getFromLocalStorage } from '@/lib/localStorageUtils';
-import { format, parseISO, isBefore, addMonths, differenceInCalendarMonths, startOfDay, formatISO } from 'date-fns';
+import { format, parseISO, isBefore, addMonths, differenceInCalendarMonths, startOfDay, formatISO, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
@@ -41,12 +41,27 @@ export default function ReservationSidebar({
   useEffect(() => {
     const settings = getFromLocalStorage<GeneralContractSettings>(
       LOCAL_STORAGE_CONTRACT_SETTINGS_KEY,
-      { serviceFeePercentage: 100 } as GeneralContractSettings // Provide a default if not found
+      // Ensure a default for serviceFeePercentage if not found in localStorage
+      // and that it's part of the default GeneralContractSettings type
+      { 
+        companyName: "Default Company",
+        companyCif: "B00000000",
+        representativeName: "Default Rep",
+        representativeDni: "00000000X",
+        contactEmail: "default@example.com",
+        supplyCostsClause: "Default supply clause",
+        lateRentPenaltyClause: "Default late rent clause",
+        lateCheckoutPenaltyClause: "Default late checkout clause",
+        inventoryDamagePolicy: "Default damage policy",
+        noisePolicyGuestLimit: 0,
+        depositReturnTimeframe: "N/A",
+        serviceFeePercentage: 100 
+      } as GeneralContractSettings 
     );
     setContractSettings(settings);
   }, []);
 
-  const serviceFeePercentage = contractSettings?.serviceFeePercentage ?? 100; // Default to 100% if not set
+  const serviceFeePercentage = contractSettings?.serviceFeePercentage ?? 100; 
   const platformFee = room.monthly_price * (serviceFeePercentage / 100);
   const totalFirstMonth = room.monthly_price + platformFee;
 
@@ -56,28 +71,36 @@ export default function ReservationSidebar({
 
   const handleNavigateToReservation = () => {
     let queryString = '';
-    if (selectedCheckInDate) {
+    if (selectedCheckInDate && isValid(selectedCheckInDate)) {
       queryString += `?checkIn=${formatISO(selectedCheckInDate, { representation: 'date' })}`;
-      if (selectedCheckOutDate) {
+      if (selectedCheckOutDate && isValid(selectedCheckOutDate)) {
         queryString += `&checkOut=${formatISO(selectedCheckOutDate, { representation: 'date' })}`;
-      } else if (room.availability.minimum_stay_months) {
-        // If no checkout, but min stay exists, calculate a default checkout
-        const defaultCheckout = addMonths(selectedCheckInDate, room.availability.minimum_stay_months);
-        queryString += `&checkOut=${formatISO(defaultCheckout, { representation: 'date' })}`;
       }
     }
     router.push(`/reserve/${room.id}${queryString}`);
   };
   
-  const minCheckInDate = room.availability.available_now 
+  const minCalendarDateForCheckIn = room.availability.available_now 
     ? startOfDay(new Date()) 
     : room.availability.available_from 
     ? startOfDay(parseISO(room.availability.available_from)) 
     : startOfDay(new Date());
 
-  // Ensure minCheckInDate is not in the past
    const today = startOfDay(new Date());
-   const effectiveMinCheckInDate = isBefore(minCheckInDate, today) ? today : minCheckInDate;
+   const effectiveMinCheckInDate = isBefore(minCalendarDateForCheckIn, today) ? today : minCalendarDateForCheckIn;
+
+  const minStayMonths = room.availability.minimum_stay_months;
+
+  const defaultCheckoutCalendarInitialMonth = useMemo(() => {
+    if (selectedCheckInDate) {
+      if (typeof minStayMonths === 'number' && minStayMonths > 0) {
+        return addMonths(selectedCheckInDate, minStayMonths);
+      }
+      // If no minStayMonths or it's 0, default to the month of the selectedCheckInDate
+      return selectedCheckInDate; 
+    }
+    return undefined; // No default if no check-in date
+  }, [selectedCheckInDate, minStayMonths]);
 
 
   return (
@@ -118,7 +141,11 @@ export default function ReservationSidebar({
                     onSelect={onCheckInDateSelect}
                     initialFocus
                     locale={es}
-                    disabled={(date) => isBefore(date, effectiveMinCheckInDate) || (selectedCheckOutDate && isAfter(date, selectedCheckOutDate))}
+                    disabled={(date) => 
+                      isBefore(date, effectiveMinCheckInDate) || 
+                      (selectedCheckOutDate ? isAfter(date, selectedCheckOutDate) : false)
+                    }
+                    defaultMonth={selectedCheckInDate || effectiveMinCheckInDate}
                   />
                 </PopoverContent>
               </Popover>
@@ -147,6 +174,7 @@ export default function ReservationSidebar({
                     onSelect={onCheckOutDateSelect}
                     initialFocus
                     locale={es}
+                    defaultMonth={defaultCheckoutCalendarInitialMonth}
                     disabled={(date) => !selectedCheckInDate || isBefore(date, selectedCheckInDate)}
                   />
                 </PopoverContent>
@@ -166,7 +194,12 @@ export default function ReservationSidebar({
              {selectedCheckInDate && selectedCheckOutDate && isBefore(selectedCheckInDate, selectedCheckOutDate) && (
               <div className="flex justify-between text-sm font-medium">
                 <span>Duración Total</span>
-                <span>{differenceInCalendarMonths(selectedCheckOutDate, selectedCheckInDate) || 1} mes(es)</span>
+                <span>
+                  {(() => {
+                    const months = differenceInCalendarMonths(selectedCheckOutDate, selectedCheckInDate);
+                    return months > 0 ? `${months} mes(es)` : 'Menos de 1 mes';
+                  })()}
+                </span>
               </div>
             )}
             <div className="flex justify-between font-semibold text-lg">
@@ -184,7 +217,7 @@ export default function ReservationSidebar({
             size="lg" 
             className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
             onClick={handleNavigateToReservation}
-            disabled={!selectedCheckInDate} // Require at least check-in date
+            disabled={!selectedCheckInDate || !selectedCheckOutDate} // Require both check-in and check-out date
           >
             Reservar Ahora
           </Button>
@@ -216,4 +249,3 @@ export default function ReservationSidebar({
   );
 }
 
-    
