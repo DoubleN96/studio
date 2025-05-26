@@ -20,13 +20,14 @@ export interface Amenity {
   id: number;
   name: string;
   key: string; // e.g., "wifi", "tv", "air-conditioning"
-  icon_name: string | null; 
+  icon_name: string | null;
   category_id: number;
   category_name: string;
 }
 
 export interface Room {
   id: number;
+  code?: string; // Added for pre-filling booked room
   title: string;
   description: string | null;
   monthly_price: number;
@@ -48,13 +49,33 @@ export interface Room {
   square_meters: number | null;
   amenities: Amenity[];
   is_verified: boolean;
-  // Add other fields from the feed as needed
 }
 
-export interface ReservationDetails {
-  name: string;
-  email: string;
-  phone: string;
-  idFile: File | null;
-}
+export interface ReservationDetailsType {
+  // Step 1
+  startDate?: Date;
+  duration?: number;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
 
+  // Step 3 - Additional Information
+  bookedRoom?: string;
+  birthDate?: Date;
+  gender?: string;
+  studyOrWork?: string;
+  currentAddress?: string;
+  passportIdNumber?: string;
+  originCountry?: string;
+  checkInDate?: Date; // Derived from startDate
+  checkOutDate?: Date; // Derived from startDate + duration
+  iban?: string;
+  bic?: string;
+  emergencyContact?: string;
+  universityWorkCenter?: string;
+
+  // Mock file tracking (not part of form data directly)
+  passportIdFile?: File | null;
+  proofOfStudiesWorkFile?: File | null;
+}
