@@ -16,14 +16,20 @@ import { Button } from '@/components/ui/button';
 import { parseISO, isBefore, startOfDay } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 
-
-// Helper to render amenities
-const AmenityItem = ({ amenity }: { amenity: { name: string, icon_name?: string | null } }) => (
-  <li className="flex items-center text-sm bg-muted p-2 rounded-md">
-    {amenity.icon_name === 'wifi' && <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2 text-accent"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>}
-    {amenity.icon_name !== 'wifi' && <CheckCircle2 className="mr-2 h-4 w-4 text-accent" />}
-    {amenity.name}
-  </li>
+// Moved CardSkeleton definition here
+const CardSkeleton = () => (
+  <div className="bg-card p-6 rounded-lg shadow-md space-y-4">
+    <Skeleton className="h-8 w-3/4" />
+    <Skeleton className="h-4 w-1/2" />
+    <Skeleton className="h-4 w-1/3" />
+    <Separator className="my-6" />
+    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+      <Skeleton className="h-16 w-full" />
+      <Skeleton className="h-16 w-full" />
+      <Skeleton className="h-16 w-full" />
+    </div>
+    <Skeleton className="h-20 w-full" />
+  </div>
 );
 
 export default function RoomPage() {
@@ -131,21 +137,6 @@ export default function RoomPage() {
     );
   }
   
-  const CardSkeleton = () => (
-    <div className="bg-card p-6 rounded-lg shadow-md space-y-4">
-      <Skeleton className="h-8 w-3/4" />
-      <Skeleton className="h-4 w-1/2" />
-      <Skeleton className="h-4 w-1/3" />
-      <Separator className="my-6" />
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-        <Skeleton className="h-16 w-full" />
-        <Skeleton className="h-16 w-full" />
-        <Skeleton className="h-16 w-full" />
-      </div>
-      <Skeleton className="h-20 w-full" />
-    </div>
-  );
-
 
   if (error) {
     return (
@@ -171,6 +162,15 @@ export default function RoomPage() {
       </div>
     );
   }
+
+  // Helper to render amenities
+  const AmenityItem = ({ amenity }: { amenity: { name: string, icon_name?: string | null } }) => (
+    <li className="flex items-center text-sm bg-muted p-2 rounded-md">
+      {amenity.icon_name === 'wifi' && <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2 text-accent"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>}
+      {amenity.icon_name !== 'wifi' && <CheckCircle2 className="mr-2 h-4 w-4 text-accent" />}
+      {amenity.name}
+    </li>
+  );
 
   return (
     <div className="max-w-6xl mx-auto" suppressHydrationWarning={true}>
