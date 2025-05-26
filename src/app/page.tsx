@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
@@ -9,6 +10,7 @@ import PaginationControls from '@/components/PaginationControls';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Info } from "lucide-react";
+import { parseISO, isBefore, isAfter, isEqual, startOfDay, endOfDay } from 'date-fns';
 
 const ITEMS_PER_PAGE = 12;
 
@@ -19,7 +21,8 @@ export default function HomePage() {
   
   const [filters, setFilters] = useState<Filters>({
     city: '',
-    availabilityDate: undefined,
+    checkInDate: undefined,
+    checkOutDate: undefined,
     maxPrice: '',
   });
   const [currentPage, setCurrentPage] = useState(1);
@@ -44,19 +47,74 @@ export default function HomePage() {
   const filteredRooms = useMemo(() => {
     return allRooms.filter(room => {
       const cityMatch = filters.city ? room.city.toLowerCase().includes(filters.city.toLowerCase()) : true;
-      
       const priceMatch = filters.maxPrice ? room.monthly_price <= parseFloat(filters.maxPrice) : true;
-      
+
       let availabilityMatch = true;
-      if (filters.availabilityDate) {
+
+      if (filters.checkInDate) {
+        const checkIn = startOfDay(filters.checkInDate);
+        
+        let roomIsOpenAtCheckIn = false;
         if (room.availability.available_now) {
-          availabilityMatch = true;
+          roomIsOpenAtCheckIn = true;
         } else if (room.availability.available_from) {
-          availabilityMatch = new Date(room.availability.available_from) <= filters.availabilityDate;
+          const availableFrom = startOfDay(parseISO(room.availability.available_from));
+          if (!isBefore(checkIn, availableFrom)) { // checkIn >= availableFrom
+            roomIsOpenAtCheckIn = true;
+          }
+        }
+
+        if (!roomIsOpenAtCheckIn) {
+          availabilityMatch = false;
         } else {
-          availabilityMatch = false; // No info, assume not available for specific date
+          // If checkOutDate is also provided, check the whole interval
+          if (filters.checkOutDate) {
+            const checkOut = endOfDay(filters.checkOutDate);
+            if (isBefore(checkOut, checkIn)) { // Invalid range (checkout before checkin)
+                availabilityMatch = false;
+            } else {
+                let periodIsBlockedByUnavailableRange = false;
+                if (room.availability.unavailable_dates_range) {
+                  const unavailableRanges = Object.values(room.availability.unavailable_dates_range)
+                    .filter(range => range && range.length === 2 && range[0] && range[1])
+                    .map(rangeStr => [startOfDay(parseISO(rangeStr[0])), endOfDay(parseISO(rangeStr[1]))] as [Date, Date]);
+
+                  for (const [unavailableStart, unavailableEnd] of unavailableRanges) {
+                    // Check for overlap: (filterStart < unavailableEnd) and (filterEnd > unavailableStart)
+                    if (isBefore(checkIn, unavailableEnd) && isAfter(checkOut, unavailableStart)) {
+                      periodIsBlockedByUnavailableRange = true;
+                      break;
+                    }
+                  }
+                }
+                if (periodIsBlockedByUnavailableRange) {
+                  availabilityMatch = false;
+                }
+            }
+          } else { // Only checkInDate is provided, check if checkIn date itself is within an unavailable_dates_range
+              let checkInIsBlockedByUnavailableRange = false;
+              if (room.availability.unavailable_dates_range) {
+                  const unavailableRanges = Object.values(room.availability.unavailable_dates_range)
+                    .filter(range => range && range.length === 2 && range[0] && range[1])
+                    .map(rangeStr => [startOfDay(parseISO(rangeStr[0])), endOfDay(parseISO(rangeStr[1]))] as [Date, Date]);
+                  
+                  for (const [unavailableStart, unavailableEnd] of unavailableRanges) {
+                      // Check if checkIn is within [unavailableStart, unavailableEnd]
+                      if (!isBefore(checkIn, unavailableStart) && !isAfter(checkIn, unavailableEnd)) { 
+                          checkInIsBlockedByUnavailableRange = true;
+                          break;
+                      }
+                  }
+              }
+              if (checkInIsBlockedByUnavailableRange) {
+                  availabilityMatch = false;
+              }
+          }
         }
       }
+      // If only filters.checkOutDate is set, without a checkInDate, it's an incomplete filter.
+      // For now, we require checkInDate for date-based availability checks.
+
       return cityMatch && priceMatch && availabilityMatch;
     });
   }, [allRooms, filters]);
@@ -92,7 +150,15 @@ export default function HomePage() {
   return (
     <div>
       <h1 className="text-3xl font-bold mb-8 text-center text-primary">Encuentra tu Espacio Ideal</h1>
-      <RoomFilters onFilterChange={handleFilterChange} initialFilters={filters} />
+      <RoomFilters 
+        onFilterChange={handleFilterChange} 
+        initialFilters={{
+          city: '',
+          checkInDate: undefined,
+          checkOutDate: undefined,
+          maxPrice: '',
+        }} 
+      />
 
       {isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
