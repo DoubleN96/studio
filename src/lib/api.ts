@@ -3,7 +3,7 @@ import type { Room, RoomPhoto, Amenity, RoomAvailability } from './types';
 import { parseISO } from 'date-fns';
 
 
-const API_URL = 'https://tripath.colivingsoft.site/api/version/2.0/default/rooms/feed';
+const API_BASE_URL = 'https://tripath.colivingsoft.site/api/version/2.0/default/rooms/feed';
 
 // Helper to get a currency symbol (simplified)
 function getCurrencySymbol(currencyCode: string): string {
@@ -21,7 +21,7 @@ function getCurrencySymbol(currencyCode: string): string {
 
 export async function fetchRooms(): Promise<Room[]> {
   try {
-    const response = await fetch(API_URL);
+    const response = await fetch(API_BASE_URL);
     if (!response.ok) {
       let errorBody = '';
       try {
@@ -36,17 +36,19 @@ export async function fetchRooms(): Promise<Room[]> {
 
     let roomsData: any[] = [];
 
+    // Try to find the rooms array in common locations
     if (Array.isArray(apiResult)) {
       roomsData = apiResult;
     } else if (typeof apiResult === 'object' && apiResult !== null) {
-      const commonKeys = ['data', 'results', 'items', 'rooms', 'feed'];
-      for (const key of commonKeys) {
+      const commonRootKeys = ['data', 'results', 'items', 'rooms', 'feed', 'response'];
+      const commonNestedKeys = ['rooms', 'items', 'results', 'list', 'entities', 'records'];
+
+      for (const key of commonRootKeys) {
         if (Array.isArray(apiResult[key])) {
           roomsData = apiResult[key];
           break;
         } else if (typeof apiResult[key] === 'object' && apiResult[key] !== null) {
-           const subKeys = ['rooms', 'items', 'results', 'list', 'entities'];
-           for (const subKey of subKeys) {
+           for (const subKey of commonNestedKeys) {
              if (Array.isArray(apiResult[key][subKey])) {
                roomsData = apiResult[key][subKey];
                break;
@@ -58,26 +60,32 @@ export async function fetchRooms(): Promise<Room[]> {
     }
 
     if (roomsData.length === 0 && !Array.isArray(apiResult)) {
-      console.warn('Rooms API response is not an array and common nested array keys were not found. Returning empty array. Root keys:', Object.keys(apiResult || {}), 'Full response:', apiResult);
+       console.warn(
+        'Rooms API response is not an array and common nested array keys were not found. '+
+        'Assuming the root object is the data or check for other possible structures. Root keys:', 
+        Object.keys(apiResult || {}), 
+        'Full response snippet:', JSON.stringify(apiResult)?.substring(0, 500)
+      );
       return [];
     }
-     if (roomsData.length === 0 && Array.isArray(apiResult) && apiResult.length === 0) {
+    if (roomsData.length === 0 && Array.isArray(apiResult) && apiResult.length === 0) {
       // It's an empty array, which is valid.
+      console.log('Rooms API returned an empty array.');
     }
 
 
-    return roomsData.map((item: any): Room => {
-      const photos: RoomPhoto[] = Array.isArray(item.photos)
-        ? item.photos.map((url: string, index: number) => ({
-            id: item.id * 1000 + index, // Create a more unique ID for photos
+    return roomsData.map((item: any, index: number): Room => {
+      const photos: RoomPhoto[] = Array.isArray(item.photos) && item.photos.length > 0
+        ? item.photos.map((url: string, photoIndex: number) => ({
+            id: (parseInt(item.id, 10) * 1000) + photoIndex + 1000, // Create a more unique ID for photos
             url_thumbnail: url || "https://placehold.co/300x200.png",
             url_medium: url || "https://placehold.co/600x400.png",
             url_original: url || "https://placehold.co/800x600.png",
-            caption: item.room_descriptions?.es_ES?.room_title || `Imagen ${index + 1}`,
-            order: index,
+            caption: item.room_descriptions?.es_ES?.room_title || `Imagen ${photoIndex + 1}`,
+            order: photoIndex,
           }))
         : (item.preview_image ? [{ // Fallback to preview_image if photos array is empty/missing
-            id: item.id * 1000,
+            id: parseInt(item.id, 10) * 1000,
             url_thumbnail: item.preview_image,
             url_medium: item.preview_image,
             url_original: item.preview_image,
@@ -89,11 +97,11 @@ export async function fetchRooms(): Promise<Room[]> {
       if (Array.isArray(item.flat_services)) {
         item.flat_services.forEach((serviceName: string) => {
           amenities.push({
-            id: amenities.length + 1 + item.id * 100, // Ensure unique IDs
+            id: amenities.length + 1 + (parseInt(item.id, 10) * 100), // Ensure unique IDs
             name: serviceName,
             key: serviceName.toLowerCase().replace(/\s+/g, '-'),
-            icon_name: null, // Can map common ones later
-            category_id: 1, // Arbitrary category
+            icon_name: serviceName.toLowerCase().includes('wifi') ? 'wifi' : null, // Basic icon mapping
+            category_id: 1, 
             category_name: 'Servicios del Piso'
           });
         });
@@ -101,18 +109,18 @@ export async function fetchRooms(): Promise<Room[]> {
       if (Array.isArray(item.room_services)) {
         item.room_services.forEach((serviceName: string) => {
           amenities.push({
-            id: amenities.length + 1 + item.id * 200, // Ensure unique IDs
+            id: amenities.length + 1 + (parseInt(item.id, 10) * 200), // Ensure unique IDs
             name: serviceName,
             key: serviceName.toLowerCase().replace(/\s+/g, '-'),
-            icon_name: null, // Can map common ones later
-            category_id: 2, // Arbitrary category
+            icon_name: null, 
+            category_id: 2, 
             category_name: 'Servicios de la Habitación'
           });
         });
       }
       
       const availability: RoomAvailability = {
-        available_now: item.available_now || false,
+        available_now: !!item.available_now,
         available_from: item.available_date_for_sys || null, // "YYYY-MM-DD"
         minimum_stay_months: typeof item.minimum_stay_months === 'number' ? item.minimum_stay_months : (item.type === "room" ? 1 : null),
         maximum_stay_months: typeof item.maximum_stay_months === 'number' ? item.maximum_stay_months : null,
@@ -120,7 +128,7 @@ export async function fetchRooms(): Promise<Room[]> {
       };
       
       const roomTitle = item.room_descriptions?.es_ES?.room_title || item.name || item.code || `Habitación ${item.id}`;
-      const roomDescription = item.room_descriptions?.es_ES?.room_description || null;
+      const roomDescription = item.room_descriptions?.es_ES?.room_description || item.flat_descriptions?.es_ES?.flat_description || null;
 
       return {
         id: parseInt(item.id, 10),
@@ -132,20 +140,21 @@ export async function fetchRooms(): Promise<Room[]> {
         currency_code: item.currency || 'EUR',
         city: item.flat_area || 'Ciudad no especificada',
         address_1: item.flat_address || 'Dirección no disponible',
-        address_2: null, // Not in provided JSON structure
+        address_2: null, 
         postcode: item.flat_postcode || null,
-        country: item.flat_country || 'España', // Assuming Spain if not provided
+        country: item.flat_country || 'España', 
         lat: item.flat_lat ? parseFloat(item.flat_lat) : null,
         lng: item.flat_lon ? parseFloat(item.flat_lon) : null,
         photos,
         availability,
         property_type_name: item.flat_type_name || (item.type === 'room' ? 'Piso Compartido' : 'Propiedad Completa'),
         room_type_name: item.type === 'room' ? `Habitación en ${item.flat_type_name || 'Piso'}` : (item.room_type_name || 'Estudio/Apartamento'),
-        bedrooms: item.rooms_in_flat ? parseInt(item.rooms_in_flat, 10) : null, // bedrooms of the whole flat
+        bedrooms: item.rooms_in_flat ? parseInt(item.rooms_in_flat, 10) : null, 
         bathrooms: item.flat_bathrooms ? parseInt(item.flat_bathrooms, 10) : null,
-        square_meters: item.square_meters || item.room_area || null, // room_area might be specific to the room
+        square_meters: item.square_meters || item.room_area ? parseFloat(item.square_meters || item.room_area) : null,
         amenities,
-        is_verified: item.is_verified || false, // Assuming a field, might not exist
+        is_verified: !!item.is_verified,
+        flat_video: item.flat_video || null,
       };
     });
 
@@ -162,4 +171,3 @@ export async function fetchRoomById(id: number): Promise<Room | undefined> {
   const rooms = await fetchRooms();
   return rooms.find(room => room.id === id);
 }
-

@@ -10,7 +10,7 @@ import ReservationSidebar from '@/components/ReservationSidebar';
 import AvailabilityDisplay from '@/components/AvailabilityDisplay';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { MapPin, Home, Maximize, BedDouble, Bath, CheckCircle2, Edit3, Info, AlertCircle, Tag } from 'lucide-react'; // Added Tag
+import { MapPin, Home, Maximize, BedDouble, Bath, CheckCircle2, Edit3, Info, AlertCircle, Tag, Youtube } from 'lucide-react'; // Added Tag & Youtube
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { parseISO, isBefore, startOfDay } from 'date-fns';
@@ -33,8 +33,8 @@ const CardSkeleton = () => (
 );
 
 export default function RoomPage() {
-  const routeParams = useParams<{ id: string }>(); // Use useParams hook
-  const roomId = Number(routeParams.id); // Get id from the hook
+  const routeParams = useParams<{ id: string }>(); 
+  const roomId = Number(routeParams.id); 
   const [room, setRoom] = useState<Room | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -233,6 +233,25 @@ export default function RoomPage() {
             )}
           </div>
 
+          {room.flat_video && (
+            <div className="bg-card p-6 rounded-lg shadow-md mt-6">
+              <h2 className="text-xl font-semibold mb-4 flex items-center">
+                <Youtube className="mr-2 h-6 w-6 text-accent" /> {/* Increased icon size */}
+                Vídeo de la Propiedad
+              </h2>
+              <div className="aspect-video"> {/* Ensures 16:9 aspect ratio for the container */}
+                <iframe
+                  className="w-full h-full rounded-lg border border-border" // Added border
+                  src={room.flat_video} // The URL from JSON should be embeddable
+                  title="Vídeo de la Propiedad"
+                  frameBorder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                ></iframe>
+              </div>
+            </div>
+          )}
+
           {room.availability && (
             <AvailabilityDisplay 
                 availability={room.availability} 
@@ -268,5 +287,3 @@ export default function RoomPage() {
     </div>
   );
 }
-    
-    

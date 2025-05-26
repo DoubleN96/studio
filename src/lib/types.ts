@@ -49,6 +49,7 @@ export interface Room {
   square_meters: number | null;
   amenities: Amenity[];
   is_verified: boolean;
+  flat_video?: string | null; // Added for YouTube video
 }
 
 export interface ReservationDetailsType {
@@ -93,4 +94,5 @@ export interface GeneralContractSettings {
   inventoryDamagePolicy: string; // Text area
   noisePolicyGuestLimit: number;
   depositReturnTimeframe: string; // e.g., "dos meses", "60 días"
+  serviceFeePercentage?: number; // Added for service fee configuration
 }
