@@ -7,7 +7,7 @@ import type { Room } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import ReservationSummaryDialog from '@/components/ReservationSummaryDialog'; // Import the dialog
-import { CalendarDays, Info, ShieldCheck } from 'lucide-react';
+import { CalendarDays, Info, ShieldCheck, Eye } from 'lucide-react';
 
 interface ReservationSidebarProps {
   room: Room;
@@ -21,13 +21,12 @@ export default function ReservationSidebar({ room }: ReservationSidebarProps) {
   const platformFee = room.monthly_price * 0.1; // Example platform fee
   const totalFirstMonth = room.monthly_price + platformFee;
 
-  const handleOpenSummary = () => {
+  const handleOpenSummaryDialog = () => {
     setIsSummaryDialogOpen(true);
   };
 
-  const handleConfirmReservation = () => {
-    setIsSummaryDialogOpen(false); // Close the dialog
-    router.push(`/reserve/${room.id}`); // Navigate to reservation page
+  const handleNavigateToReservation = () => {
+    router.push(`/reserve/${room.id}`);
   };
 
   return (
@@ -77,10 +76,19 @@ export default function ReservationSidebar({ room }: ReservationSidebarProps) {
         <CardFooter className="flex flex-col gap-2">
           <Button 
             size="lg" 
-            className="w-full bg-accent hover:bg-accent/90 text-accent-foreground"
-            onClick={handleOpenSummary} // Open dialog on click
+            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+            onClick={handleNavigateToReservation} 
           >
             Reservar Ahora
+          </Button>
+          <Button
+            variant="link"
+            size="sm"
+            className="w-full text-muted-foreground hover:text-primary mt-1"
+            onClick={handleOpenSummaryDialog}
+          >
+            <Eye size={16} className="mr-2" />
+            Ver Resumen Estimado
           </Button>
           <div className="flex items-center text-xs text-muted-foreground pt-2">
               <ShieldCheck size={14} className="mr-1 text-green-600" />
@@ -94,7 +102,7 @@ export default function ReservationSidebar({ room }: ReservationSidebarProps) {
         room={room}
         open={isSummaryDialogOpen}
         onOpenChange={setIsSummaryDialogOpen}
-        onConfirm={handleConfirmReservation}
+        onConfirm={handleNavigateToReservation} // The dialog's confirm button will also navigate
       />
     </>
   );
