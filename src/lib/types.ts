@@ -13,6 +13,7 @@ export interface RoomAvailability {
   available_from: string | null; // Date string e.g., "2024-08-01"
   minimum_stay_months: number | null;
   maximum_stay_months: number | null;
+  unavailable_dates_range?: Record<string, [string, string]> | null; // e.g. {"timestamp": ["YYYY-MM-DD", "YYYY-MM-DD"]}
 }
 
 export interface Amenity {
@@ -56,3 +57,4 @@ export interface ReservationDetails {
   phone: string;
   idFile: File | null;
 }
+

@@ -1,10 +1,11 @@
+
 import { fetchRoomById } from '@/lib/api';
 import type { Room } from '@/lib/types';
 import ImageCarousel from '@/components/ImageCarousel';
 import ReservationSidebar from '@/components/ReservationSidebar';
+import AvailabilityDisplay from '@/components/AvailabilityDisplay'; // Import the new component
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { MapPin, Building, BedDouble, Bath, Users, Maximize, CheckCircle2, Home, Tag, Edit3, Info } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -44,7 +45,7 @@ export default async function RoomPage({ params }: RoomPageParams) {
 
   if (!room) {
     return (
-       <div className="text-center py-10">
+       <div className="text-center py-10" suppressHydrationWarning={true}>
         <h1 className="text-2xl font-semibold mb-4">Habitación no Encontrada</h1>
         <p className="text-muted-foreground mb-6">Lo sentimos, la habitación que buscas no existe o no está disponible.</p>
         <Button asChild variant="outline">
@@ -115,8 +116,11 @@ export default async function RoomPage({ params }: RoomPageParams) {
             )}
           </div>
 
+          {/* New Availability Display Section */}
+          <AvailabilityDisplay availability={room.availability} />
+
           {room.amenities && room.amenities.length > 0 && (
-            <div className="bg-card p-6 rounded-lg shadow-md">
+            <div className="bg-card p-6 rounded-lg shadow-md mt-6">
               <h2 className="text-xl font-semibold mb-4 flex items-center"><Tag size={20} className="mr-2 text-accent" /> Comodidades</h2>
               <ul className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 {room.amenities.map((amenity) => (
@@ -125,16 +129,6 @@ export default async function RoomPage({ params }: RoomPageParams) {
               </ul>
             </div>
           )}
-
-          <div className="bg-card p-6 rounded-lg shadow-md">
-            <h2 className="text-xl font-semibold mb-3 flex items-center"><Info size={20} className="mr-2 text-accent" /> Información de Disponibilidad</h2>
-            <div className="space-y-2 text-sm">
-              <p><strong>Disponible Ahora:</strong> {room.availability.available_now ? 'Sí' : 'No'}</p>
-              {room.availability.available_from && <p><strong>Disponible Desde:</strong> {new Date(room.availability.available_from).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })}</p>}
-              {room.availability.minimum_stay_months && <p><strong>Estancia Mínima:</strong> {room.availability.minimum_stay_months} mes(es)</p>}
-              {room.availability.maximum_stay_months && <p><strong>Estancia Máxima:</strong> {room.availability.maximum_stay_months} mes(es)</p>}
-            </div>
-          </div>
           
           {/* Placeholder for Floorplan/Video - if data becomes available */}
           {/* <div className="bg-card p-6 rounded-lg shadow-md">
