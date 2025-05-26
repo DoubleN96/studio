@@ -4,7 +4,7 @@
 import type { RoomAvailability } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { format, getMonth, getYear, isWithinInterval, parseISO, startOfMonth, endOfMonth, addMonths, isBefore, isEqual, startOfDay, isSameMonth, isSameYear, max, min } from 'date-fns';
+import { format, getMonth, getYear, isWithinInterval, parseISO, startOfMonth, endOfMonth, addMonths, isBefore, isEqual, startOfDay, isSameMonth, isSameYear, max, min, isAfter } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Info, CalendarDays } from 'lucide-react';
 import { cn } from '@/lib/utils';
