@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useParams } from 'next/navigation'; // Import useParams
 import { fetchRoomById } from '@/lib/api';
 import type { Room } from '@/lib/types';
 import ImageCarousel from '@/components/ImageCarousel';
@@ -9,18 +10,12 @@ import ReservationSidebar from '@/components/ReservationSidebar';
 import AvailabilityDisplay from '@/components/AvailabilityDisplay';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { MapPin, Home, Maximize, BedDouble, Bath, CheckCircle2, Edit3, Info, AlertCircle } from 'lucide-react';
+import { MapPin, Home, Maximize, BedDouble, Bath, CheckCircle2, Edit3, Info, AlertCircle, Tag } from 'lucide-react'; // Added Tag
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { parseISO, isBefore, startOfDay } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 
-
-interface RoomPageParams {
-  params: {
-    id: string;
-  };
-}
 
 // Helper to render amenities
 const AmenityItem = ({ amenity }: { amenity: { name: string, icon_name?: string | null } }) => (
@@ -31,13 +26,9 @@ const AmenityItem = ({ amenity }: { amenity: { name: string, icon_name?: string 
   </li>
 );
 
-
-// Note: generateMetadata cannot be 'use client', so we keep it separate or fetch data differently if needed for metadata.
-// For simplicity, if this component is fully client-side, metadata might need static values or a server-side wrapper.
-// For now, assuming metadata is handled as before or adapted for client-side data fetching if necessary.
-
-export default function RoomPage({ params }: RoomPageParams) {
-  const roomId = Number(params.id);
+export default function RoomPage() {
+  const routeParams = useParams<{ id: string }>(); // Use useParams hook
+  const roomId = Number(routeParams.id); // Get id from the hook
   const [room, setRoom] = useState<Room | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +38,11 @@ export default function RoomPage({ params }: RoomPageParams) {
 
   useEffect(() => {
     async function loadRoomData() {
+      if (isNaN(roomId)) {
+        setError('ID de habitación inválido.');
+        setIsLoading(false);
+        return;
+      }
       try {
         setIsLoading(true);
         const roomData = await fetchRoomById(roomId);
@@ -54,20 +50,18 @@ export default function RoomPage({ params }: RoomPageParams) {
           setRoom(roomData);
           // Initialize selectedCheckInDate based on room availability
           if (roomData.availability) {
-            const initialDate = roomData.availability.available_now
-              ? startOfDay(new Date())
+            const today = startOfDay(new Date());
+            let initialDateCandidate = roomData.availability.available_now
+              ? today
               : roomData.availability.available_from
               ? startOfDay(parseISO(roomData.availability.available_from))
-              : undefined;
-            
-            // Ensure initialDate is not in the past if available_now is false but available_from is past
-            const today = startOfDay(new Date());
-            if (initialDate && isBefore(initialDate, today) && !roomData.availability.available_now) {
-                 setSelectedCheckInDate(today > initialDate ? today : initialDate);
-            } else if (initialDate) {
-                 setSelectedCheckInDate(initialDate);
-            }
+              : today; // Fallback to today
 
+            // Ensure initialDate is not in the past
+            if (isBefore(initialDateCandidate, today)) {
+              initialDateCandidate = today;
+            }
+            setSelectedCheckInDate(initialDateCandidate);
           }
         } else {
           setError('Habitación no encontrada.');
@@ -108,6 +102,8 @@ export default function RoomPage({ params }: RoomPageParams) {
         } else if (roomAvailableFrom) {
             // If not available now, but has an available_from date
             if (isBefore(newCheckIn, roomAvailableFrom)) effectiveInitialDate = roomAvailableFrom;
+        } else { // No specific available_from, but not available_now implies from today
+            if (isBefore(newCheckIn, today)) effectiveInitialDate = today;
         }
     }
     
@@ -237,11 +233,14 @@ export default function RoomPage({ params }: RoomPageParams) {
             )}
           </div>
 
-          <AvailabilityDisplay 
-            availability={room.availability} 
-            selectedCheckInDate={selectedCheckInDate}
-            onDateSelect={handleAvailabilityDisplayDateSelect} 
-          />
+          {room.availability && (
+            <AvailabilityDisplay 
+                availability={room.availability} 
+                selectedCheckInDate={selectedCheckInDate}
+                onDateSelect={handleAvailabilityDisplayDateSelect} 
+            />
+          )}
+
 
           {room.amenities && room.amenities.length > 0 && (
             <div className="bg-card p-6 rounded-lg shadow-md mt-6">
@@ -269,5 +268,5 @@ export default function RoomPage({ params }: RoomPageParams) {
     </div>
   );
 }
-
+    
     
