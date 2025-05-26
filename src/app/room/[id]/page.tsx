@@ -55,7 +55,7 @@ export default async function RoomPage({ params }: RoomPageParams) {
   }
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="max-w-6xl mx-auto" suppressHydrationWarning={true}>
       <div className="md:flex md:gap-8">
         {/* Main Content Area */}
         <div className="md:w-2/3 space-y-6">
