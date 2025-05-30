@@ -15,7 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from "@/hooks/use-toast";
-import { format, addMonths, parseISO, differenceInCalendarMonths, startOfDay, isValid } from 'date-fns';
+import { format, addMonths, parseISO, differenceInCalendarMonths, startOfDay, isValid, isBefore } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { CalendarIcon, User, Mail, Phone, UploadCloud, CreditCard, FileText, ArrowLeft, ArrowRight, Briefcase, GraduationCap, HomeIcon, Landmark, ShieldQuestion, UsersIcon, BookUser, Globe, Building } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
@@ -97,7 +97,7 @@ export default function ReservationForm({ room }: ReservationFormProps) {
   const { toast } = useToast();
 
   const { control, handleSubmit, trigger, getValues, setValue, watch, formState: { errors } } = useForm<ReservationFormData>({
-    resolver: zodResolver(currentStep === 1 ? step1Schema : step3Schema),
+    resolver: zodResolver(currentStep === 1 ? step1Schema : currentStep === 3 ? step3Schema : z.object({})), // Provide empty schema for other steps
     defaultValues: {
       startDate: reservationDetails.startDate,
       duration: reservationDetails.duration,
@@ -155,7 +155,21 @@ export default function ReservationForm({ room }: ReservationFormProps) {
   }, [searchParams, setValue, room.availability.minimum_stay_months]);
 
 
-  const nextStep = () => setCurrentStep((prev) => Math.min(prev + 1, STEPS.length));
+  const nextStep = async () => {
+    let isValidStep = true;
+    if (currentStep === 1) {
+        isValidStep = await trigger([...Object.keys(step1Schema.shape)] as Array<keyof ReservationFormData>);
+    } else if (currentStep === 3) {
+        isValidStep = await trigger([...Object.keys(step3Schema.shape)] as Array<keyof ReservationFormData>);
+        if (isValidStep && !passportFile) {
+            toast({ variant: "destructive", title: "Archivo Requerido", description: "Por favor, sube una foto de tu pasaporte/ID." });
+            isValidStep = false;
+        }
+    }
+    if (isValidStep) {
+        setCurrentStep((prev) => Math.min(prev + 1, STEPS.length));
+    }
+};
   const prevStep = () => setCurrentStep((prev) => Math.max(prev - 1, 1));
 
   const handlePassportFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -186,7 +200,7 @@ export default function ReservationForm({ room }: ReservationFormProps) {
   };
   
   const handleStep3Submit: SubmitHandler<ReservationFormData> = (data) => {
-     if (!passportFile) {
+     if (!passportFile) { // This check might be redundant if nextStep already handles it, but good for explicitness
       toast({ variant: "destructive", title: "Archivo Requerido", description: "Por favor, sube una foto de tu pasaporte/ID." });
       return;
     }
@@ -207,6 +221,17 @@ export default function ReservationForm({ room }: ReservationFormProps) {
     }));
     nextStep();
   };
+
+  const onSubmit: SubmitHandler<ReservationFormData> = (data) => {
+        if (currentStep === 1) {
+            handleStep1Submit(data);
+        } else if (currentStep === 3) {
+            handleStep3Submit(data);
+        } else {
+            nextStep(); // For step 2 (payment sim) and to move from step 3 to 4
+        }
+    };
+
 
   const progressPercentage = (currentStep / STEPS.length) * 100;
 
@@ -230,7 +255,7 @@ export default function ReservationForm({ room }: ReservationFormProps) {
         <Progress value={progressPercentage} className="mt-2" />
       </CardHeader>
       
-      <form onSubmit={handleSubmit(currentStep === 1 ? handleStep1Submit : currentStep === 3 ? handleStep3Submit : (e) => e.preventDefault())}>
+      <form onSubmit={handleSubmit(onSubmit)}>
         <CardContent>
           {currentStep === 1 && (
             <div className="space-y-6">
@@ -496,11 +521,12 @@ export default function ReservationForm({ room }: ReservationFormProps) {
             </Button>
           )}
 
-          {currentStep === 2 && ( // For step 2 (Payment simulation)
-             <Button onClick={nextStep} type="button"> 
+           {currentStep === 2 && ( // For step 2 (Payment simulation) - No submit, just next
+            <Button onClick={nextStep} type="button">
               Siguiente (Simular Pago) <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           )}
+
 
           {currentStep === STEPS.length && ( // For final step
               <Button onClick={() => {
