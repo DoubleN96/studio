@@ -9,6 +9,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { MapPinned } from "lucide-react";
 
+// Import for Leaflet default icon compatibility, ensuring it runs client-side
+import 'leaflet-defaulticon-compatibility';
+
 // Dynamically import the map component to ensure it's client-side only
 const DynamicMap = dynamic(() => import('@/components/InteractiveMap'), {
   ssr: false,
@@ -51,7 +54,7 @@ export default function MapPage() {
       </Alert>
     );
   }
-  
+
   // Handle case where loading is done but no rooms are found BEFORE rendering DynamicMap
   if (!isLoading && rooms.length === 0 && !error) {
     return (
