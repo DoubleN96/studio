@@ -23,7 +23,7 @@ import { useSearchParams } from 'next/navigation';
 // Schema for Step 1
 const step1Schema = z.object({
   startDate: z.date({ required_error: "La fecha de entrada es obligatoria." }),
-  duration: z.number().min(1, "La duración mínima es de 1 mes."),
+  duration: z.number({invalid_type_error: "La duración debe ser un número."}).min(1, "La duración mínima es de 1 mes."),
   firstName: z.string().min(1, "El nombre es obligatorio."),
   lastName: z.string().min(1, "Los apellidos son obligatorios."),
   email: z.string().email("Correo electrónico inválido."),
@@ -39,7 +39,7 @@ const step3Schema = z.object({
   passportIdNumber: z.string().min(1, "El número de pasaporte/ID es obligatorio."),
   originCountry: z.string().min(1, "El país de origen es obligatorio."),
   iban: z.string().min(1, "El IBAN es obligatorio."),
-  bic: z.string().optional(), 
+  bic: z.string().optional(),
   emergencyContact: z.string().min(1, "El contacto de emergencia es obligatorio. Formato: Nombre, Email, Teléfono."),
   universityWorkCenter: z.string().optional(),
 });
@@ -60,15 +60,15 @@ const STEPS = [
 export default function ReservationForm({ room }: ReservationFormProps) {
   const searchParams = useSearchParams();
   const [currentStep, setCurrentStep] = useState(1);
-  
-  // Initial state from room availability or URL params
+
   const getInitialStartDate = () => {
     const urlCheckIn = searchParams.get('checkIn');
     if (urlCheckIn) {
       const parsedUrlDate = startOfDay(parseISO(urlCheckIn));
       if (isValid(parsedUrlDate)) return parsedUrlDate;
     }
-    return room.availability.available_from ? startOfDay(parseISO(room.availability.available_from)) : startOfDay(new Date());
+    if (room.availability?.available_now) return startOfDay(new Date());
+    return room.availability?.available_from ? startOfDay(parseISO(room.availability.available_from)) : startOfDay(new Date());
   };
 
   const getInitialDuration = () => {
@@ -79,10 +79,10 @@ export default function ReservationForm({ room }: ReservationFormProps) {
       const endDate = startOfDay(parseISO(urlCheckOut));
       if (isValid(startDate) && isValid(endDate) && !isBefore(endDate,startDate)) {
         const months = differenceInCalendarMonths(endDate, startDate);
-        return Math.max(1, months); // Ensure at least 1 month
+        return Math.max(1, months);
       }
     }
-    return room.availability.minimum_stay_months || 1;
+    return room.availability?.minimum_stay_months || 1;
   };
 
 
@@ -97,7 +97,7 @@ export default function ReservationForm({ room }: ReservationFormProps) {
   const { toast } = useToast();
 
   const { control, handleSubmit, trigger, getValues, setValue, watch, formState: { errors } } = useForm<ReservationFormData>({
-    resolver: zodResolver(currentStep === 1 ? step1Schema : currentStep === 3 ? step3Schema : z.object({})), // Provide empty schema for other steps
+    resolver: zodResolver(currentStep === 1 ? step1Schema : currentStep === 3 ? step3Schema : z.object({})),
     defaultValues: {
       startDate: reservationDetails.startDate,
       duration: reservationDetails.duration,
@@ -105,34 +105,27 @@ export default function ReservationForm({ room }: ReservationFormProps) {
       lastName: '',
       email: '',
       phone: '',
-      // Step 3 fields will be undefined initially or filled later
     }
   });
-  
-  // Watch for changes in startDate and duration to update reservationDetails for display
+
   const watchedStartDate = watch("startDate");
   const watchedDuration = watch("duration");
 
   useEffect(() => {
-    if (watchedStartDate && watchedDuration) {
-      setReservationDetails(prev => ({
-        ...prev,
-        startDate: watchedStartDate,
-        duration: watchedDuration,
-        checkInDate: watchedStartDate,
-        checkOutDate: addMonths(watchedStartDate, watchedDuration)
-      }));
-    } else if (watchedStartDate) {
-       setReservationDetails(prev => ({
-        ...prev,
-        startDate: watchedStartDate,
-        checkInDate: watchedStartDate,
-        checkOutDate: undefined // Clear checkout if duration is not set
-      }));
+    let newCheckOutDate: Date | undefined = undefined;
+    if (watchedStartDate && typeof watchedDuration === 'number' && !isNaN(watchedDuration)) {
+      newCheckOutDate = addMonths(watchedStartDate, watchedDuration);
     }
+
+    setReservationDetails(prev => ({
+      ...prev,
+      startDate: watchedStartDate,
+      duration: typeof watchedDuration === 'number' ? watchedDuration : undefined,
+      checkInDate: watchedStartDate,
+      checkOutDate: newCheckOutDate
+    }));
   }, [watchedStartDate, watchedDuration]);
-  
-  // Effect to set form values if URL params change after initial load (though less common for this page)
+
   useEffect(() => {
     const urlCheckIn = searchParams.get('checkIn');
     const urlCheckOut = searchParams.get('checkOut');
@@ -148,25 +141,35 @@ export default function ReservationForm({ room }: ReservationFormProps) {
                     setValue('duration', Math.max(1, months), { shouldValidate: true });
                 }
             } else {
-                 setValue('duration', room.availability.minimum_stay_months || 1, { shouldValidate: true });
+                 setValue('duration', room.availability?.minimum_stay_months || 1, { shouldValidate: true });
             }
         }
     }
-  }, [searchParams, setValue, room.availability.minimum_stay_months]);
+  }, [searchParams, setValue, room.availability?.minimum_stay_months]);
 
 
   const nextStep = async () => {
-    let isValidStep = true;
+    let schemaToValidate: z.ZodSchema<any>;
+    let fieldsToValidate: Array<keyof ReservationFormData> | undefined = undefined;
+
     if (currentStep === 1) {
-        isValidStep = await trigger([...Object.keys(step1Schema.shape)] as Array<keyof ReservationFormData>);
+        schemaToValidate = step1Schema;
+        fieldsToValidate = Object.keys(step1Schema.shape) as Array<keyof ReservationFormData>;
     } else if (currentStep === 3) {
-        isValidStep = await trigger([...Object.keys(step3Schema.shape)] as Array<keyof ReservationFormData>);
-        if (isValidStep && !passportFile) {
-            toast({ variant: "destructive", title: "Archivo Requerido", description: "Por favor, sube una foto de tu pasaporte/ID." });
-            isValidStep = false;
-        }
+        schemaToValidate = step3Schema;
+        fieldsToValidate = Object.keys(step3Schema.shape) as Array<keyof ReservationFormData>;
+    } else {
+        setCurrentStep((prev) => Math.min(prev + 1, STEPS.length));
+        return;
     }
+
+    const isValidStep = await trigger(fieldsToValidate);
+
     if (isValidStep) {
+        if (currentStep === 3 && !passportFile) {
+            toast({ variant: "destructive", title: "Archivo Requerido", description: "Por favor, sube una foto de tu pasaporte/ID." });
+            return;
+        }
         setCurrentStep((prev) => Math.min(prev + 1, STEPS.length));
     }
 };
@@ -185,6 +188,10 @@ export default function ReservationForm({ room }: ReservationFormProps) {
   };
 
   const handleStep1Submit: SubmitHandler<ReservationFormData> = (data) => {
+    let checkOut: Date | undefined = undefined;
+    if (data.startDate && data.duration) {
+        checkOut = addMonths(data.startDate, data.duration);
+    }
     setReservationDetails(prev => ({
       ...prev,
       startDate: data.startDate,
@@ -193,17 +200,13 @@ export default function ReservationForm({ room }: ReservationFormProps) {
       lastName: data.lastName,
       email: data.email,
       phone: data.phone,
-      checkInDate: data.startDate, 
-      checkOutDate: addMonths(data.startDate!, data.duration!), 
+      checkInDate: data.startDate,
+      checkOutDate: checkOut,
     }));
-    nextStep();
+    // nextStep is called by onSubmit after successful validation
   };
-  
+
   const handleStep3Submit: SubmitHandler<ReservationFormData> = (data) => {
-     if (!passportFile) { // This check might be redundant if nextStep already handles it, but good for explicitness
-      toast({ variant: "destructive", title: "Archivo Requerido", description: "Por favor, sube una foto de tu pasaporte/ID." });
-      return;
-    }
     setReservationDetails(prev => ({
       ...prev,
       birthDate: data.birthDate,
@@ -219,7 +222,7 @@ export default function ReservationForm({ room }: ReservationFormProps) {
       passportIdFile: passportFile,
       proofOfStudiesWorkFile: proofFile,
     }));
-    nextStep();
+    // nextStep is called by onSubmit after successful validation
   };
 
   const onSubmit: SubmitHandler<ReservationFormData> = (data) => {
@@ -227,23 +230,24 @@ export default function ReservationForm({ room }: ReservationFormProps) {
             handleStep1Submit(data);
         } else if (currentStep === 3) {
             handleStep3Submit(data);
-        } else {
-            nextStep(); // For step 2 (payment sim) and to move from step 3 to 4
         }
+        // For all valid submissions of step 1 or 3, or for step 2, proceed.
+        nextStep();
     };
 
 
   const progressPercentage = (currentStep / STEPS.length) * 100;
 
-  const calculatedCheckOutDate = reservationDetails.startDate && reservationDetails.duration
+  const calculatedCheckOutDate = reservationDetails.startDate && typeof reservationDetails.duration === 'number' && !isNaN(reservationDetails.duration)
     ? addMonths(reservationDetails.startDate, reservationDetails.duration)
     : undefined;
-    
-  const minCalendarDate = room.availability.available_now 
-    ? startOfDay(new Date()) 
-    : room.availability.available_from 
-    ? startOfDay(parseISO(room.availability.available_from)) 
-    : startOfDay(new Date(new Date().setDate(new Date().getDate() -1))); // fallback to yesterday to allow today
+
+  const minCalendarDate = room.availability?.available_now
+    ? startOfDay(new Date())
+    : room.availability?.available_from
+    ? startOfDay(parseISO(room.availability.available_from))
+    : startOfDay(new Date(new Date().setDate(new Date().getDate() -1)));
+
 
   return (
     <Card className="w-full max-w-2xl mx-auto shadow-2xl">
@@ -254,7 +258,7 @@ export default function ReservationForm({ room }: ReservationFormProps) {
         </CardDescription>
         <Progress value={progressPercentage} className="mt-2" />
       </CardHeader>
-      
+
       <form onSubmit={handleSubmit(onSubmit)}>
         <CardContent>
           {currentStep === 1 && (
@@ -294,22 +298,32 @@ export default function ReservationForm({ room }: ReservationFormProps) {
                   control={control}
                   render={({ field }) => (
                     <Input
-                      {...field}
+                      // Spread field props except value and onChange, which we'll manage explicitly
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                      // Ensure value is always a string for the native input, defaulting to ''
+                      value={field.value === undefined || field.value === null || Number.isNaN(Number(field.value)) ? '' : String(field.value)}
                       id="duration"
                       type="number"
-                      value={field.value || ''}
                       onChange={(e) => {
-                        const val = parseInt(e.target.value, 10);
-                        field.onChange(isNaN(val) ? '' : val);
+                        const valStr = e.target.value;
+                        if (valStr === '') {
+                          field.onChange(undefined); // RHF expects undefined or NaN for empty/invalid number
+                        } else {
+                          const numVal = parseFloat(valStr);
+                          field.onChange(Number.isNaN(numVal) ? undefined : numVal);
+                        }
                       }}
-                      min={room.availability.minimum_stay_months || 1}
-                      max={room.availability.maximum_stay_months || 120}
+                      min={String(room.availability?.minimum_stay_months || 1)}
+                      max={String(room.availability?.maximum_stay_months || 120)}
                       className="w-full"
+                      placeholder="Número de meses"
                     />
                   )}
                 />
                 {errors.duration && <p className="text-sm text-destructive mt-1">{errors.duration.message}</p>}
-                {room.availability.minimum_stay_months && <p className="text-xs text-muted-foreground mt-1">Estancia mínima: {room.availability.minimum_stay_months} meses.</p>}
+                {room.availability?.minimum_stay_months && <p className="text-xs text-muted-foreground mt-1">Estancia mínima: {room.availability.minimum_stay_months} meses.</p>}
                  {calculatedCheckOutDate && <p className="text-xs text-muted-foreground mt-1">Fecha de salida estimada: {format(calculatedCheckOutDate, "PPP", { locale: es })}.</p>}
               </div>
               <div>
@@ -341,9 +355,9 @@ export default function ReservationForm({ room }: ReservationFormProps) {
               <h3 className="text-xl font-semibold">Página de Pago (Simulación)</h3>
               <p className="text-muted-foreground">Serás redirigido a una pasarela de pago segura.</p>
               <p className="font-bold text-lg">Total a pagar (ej. 25% adelanto): {(room.monthly_price * (reservationDetails.duration || 1) * 0.25).toFixed(2)} {room.currency_symbol}</p>
-              <Button size="lg" onClick={() => {
+              <Button size="lg" onClick={() => { // Changed from nextStep() to a direct call
                 toast({ title: "Pago Simulado Exitoso", description: "Redirigiendo a información adicional..." });
-                nextStep();
+                setCurrentStep((prev) => Math.min(prev + 1, STEPS.length)); // Manually advance step
               }} className="w-full" type="button">
                 Proceder al Pago Simulado
               </Button>
@@ -483,7 +497,7 @@ export default function ReservationForm({ room }: ReservationFormProps) {
               <div className="text-left bg-muted p-4 rounded-md text-sm space-y-1 max-h-60 overflow-y-auto">
                 <p><strong>Habitación:</strong> {reservationDetails.bookedRoom || 'N/A'}</p>
                 <p><strong>Fecha Entrada:</strong> {reservationDetails.startDate ? format(reservationDetails.startDate, "PPP", { locale: es }) : 'N/A'}</p>
-                <p><strong>Duración:</strong> {reservationDetails.duration} mes(es)</p>
+                <p><strong>Duración:</strong> {typeof reservationDetails.duration === 'number' ? `${reservationDetails.duration} mes(es)`: 'N/A'}</p>
                 <p><strong>Fecha Salida:</strong> {reservationDetails.checkOutDate ? format(reservationDetails.checkOutDate, "PPP", { locale: es }) : 'N/A'}</p>
                 <p><strong>Nombre:</strong> {reservationDetails.firstName} {reservationDetails.lastName}</p>
                 <p><strong>Email:</strong> {reservationDetails.email}</p>
@@ -514,23 +528,35 @@ export default function ReservationForm({ room }: ReservationFormProps) {
           <Button variant="outline" onClick={prevStep} disabled={currentStep === 1} type="button">
             <ArrowLeft className="mr-2 h-4 w-4" /> Anterior
           </Button>
-          
-          {currentStep < STEPS.length -1 && currentStep !== 2 && ( // For step 1 and 3
-            <Button type="submit"> 
+
+           {currentStep < STEPS.length && currentStep !== 2 && ( // For step 1 and 3, use submit which triggers validation
+            <Button type="submit">
               Siguiente <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           )}
 
-           {currentStep === 2 && ( // For step 2 (Payment simulation) - No submit, just next
-            <Button onClick={nextStep} type="button">
-              Siguiente (Simular Pago) <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
+           {currentStep === 2 && ( // For step 2 (Payment simulation) - No submit, just use its own button
+             // This button is now inside the step 2 content
+             // If we wanted a generic "Next" here, it would call setCurrentStep to advance
+             // But the custom button "Proceder al Pago Simulado" handles its own advancement.
+             // So, we might not need a generic next button for step 2 in the footer.
+             // For consistency, we can have one that simply calls setCurrentStep if that's preferred.
+             // Let's assume the "Proceder al Pago Simulado" is the main action for step 2.
+             // If a generic "Siguiente" is absolutely needed in footer for step 2:
+             /* <Button onClick={() => setCurrentStep((prev) => Math.min(prev + 1, STEPS.length))} type="button">
+                  Siguiente <ArrowRight className="ml-2 h-4 w-4" />
+             </Button> */
+             // For now, let's rely on the button within step 2 content.
+             // Or, ensure the form's onSubmit handles step 2 correctly if we make this a submit button
+             // The current setup is that Step 2's button calls setCurrentStep directly.
+             <span></span> // Placeholder if no generic next button for step 2
           )}
 
 
           {currentStep === STEPS.length && ( // For final step
               <Button onClick={() => {
                  toast({ title: "Proceso Simulado Completo", description: "¡Gracias por utilizar ChattyRental!" });
+                 // Potentially redirect or clear form here
               }} type="button">
                   Finalizar
               </Button>
@@ -540,5 +566,3 @@ export default function ReservationForm({ room }: ReservationFormProps) {
     </Card>
   );
 }
-
-    
