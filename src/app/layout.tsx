@@ -4,6 +4,9 @@ import './globals.css';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { Toaster } from "@/components/ui/toaster"
+import 'leaflet/dist/leaflet.css';
+import 'leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility.webpack.css'; // Re-adds default icon assets
+import 'leaflet-defaulticon-compatibility'; // Ensures Leaflet's default icon URLs work with webpack
 
 const geistSans = Geist({
   variable: '--font-geist-sans',

@@ -1,6 +1,6 @@
 
 import Link from 'next/link';
-import { Home, LayoutDashboard } from 'lucide-react'; // Added LayoutDashboard
+import { Home, LayoutDashboard, Map } from 'lucide-react'; // Added Map icon
 import { Button } from '@/components/ui/button';
 
 export default function Header() {
@@ -12,7 +12,7 @@ export default function Header() {
           ChattyRental
         </Link>
         <nav>
-          <ul className="flex items-center space-x-4">
+          <ul className="flex items-center space-x-2 md:space-x-4">
             <li>
               <Button variant="ghost" asChild>
                 <Link href="/" className="flex items-center text-foreground hover:text-primary">
@@ -29,11 +29,17 @@ export default function Header() {
                 </Link>
               </Button>
             </li>
+            <li>
+              <Button variant="ghost" asChild>
+                <Link href="/map" className="flex items-center text-foreground hover:text-primary">
+                  <Map className="mr-1 h-5 w-5" />
+                  Mapa
+                </Link>
+              </Button>
+            </li>
           </ul>
         </nav>
       </div>
     </header>
   );
 }
-
-    
