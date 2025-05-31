@@ -9,8 +9,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { MapPinned } from "lucide-react";
 
-// NOTE: 'leaflet-defaulticon-compatibility' is now handled by LeafletClientSetup.tsx
-
 // Dynamically import the map component to ensure it's client-side only
 const DynamicMap = dynamic(() => import('@/components/InteractiveMap'), {
   ssr: false,
@@ -54,7 +52,6 @@ export default function MapPage() {
     );
   }
 
-  // Handle case where loading is done but no rooms are found BEFORE rendering DynamicMap
   if (!isLoading && rooms.length === 0 && !error) {
     return (
       <div className="space-y-4">
@@ -70,18 +67,19 @@ export default function MapPage() {
     );
   }
 
-
   return (
     <div className="space-y-4">
       <h1 className="text-3xl font-bold mb-6 text-primary flex items-center">
         <MapPinned className="mr-3 h-8 w-8 text-accent" /> Mapa de Habitaciones
       </h1>
-      {isLoading && rooms.length === 0 ? ( // Show skeleton only if still loading AND no rooms yet
+      {isLoading && rooms.length === 0 ? ( 
          <div className="space-y-4">
             <Skeleton className="h-[calc(100vh-250px)] w-full rounded-lg" />
          </div>
       ): (
-        <DynamicMap rooms={rooms} />
+        <div className="h-[calc(100vh-250px)] w-full rounded-lg shadow-lg">
+          <DynamicMap rooms={rooms} />
+        </div>
       )}
     </div>
   );

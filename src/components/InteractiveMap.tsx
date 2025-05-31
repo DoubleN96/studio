@@ -2,12 +2,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import type LType from 'leaflet'; // Import type for Leaflet
+import type LType from 'leaflet'; 
 import type { LatLngExpression } from 'leaflet';
 import type { Room } from '@/lib/types';
-
-// Note: 'leaflet-defaulticon-compatibility' is handled by LeafletClientSetup.tsx
-// Note: 'leaflet/dist/leaflet.css' is handled by LeafletClientSetup.tsx
 
 interface InteractiveMapProps {
   rooms: Room[];
@@ -19,7 +16,6 @@ interface GroupedRooms {
   [key: string]: Room[];
 }
 
-// Helper function to safely create and inject HTML for Popups
 const createPopupHTML = (roomsInGroup: Room[]): string => {
   const isGroup = roomsInGroup.length > 1;
   const title = isGroup 
@@ -67,7 +63,7 @@ const createPopupHTML = (roomsInGroup: Room[]): string => {
         </ul>
       </div>
     `;
-  } else { // Single room popup
+  } else { 
      return `
       <div class="leaflet-popup-custom-content" style="min-width: 220px; max-width:260px;">
         ${photoHTML(firstRoom)}
@@ -80,7 +76,6 @@ const createPopupHTML = (roomsInGroup: Room[]): string => {
     `;
   }
 };
-
 
 export default function InteractiveMap({
   rooms,
@@ -112,12 +107,10 @@ export default function InteractiveMap({
         setMapInstance(null); 
       }
     };
-  // Ensure mapInstance is in dependency array for proper cleanup logic on re-initialization needs (e.g. if L or defaultCenter/Zoom somehow changed forcing a new map)
-  // Also, mapNodeRef.current itself is not a reactive dependency. The effect runs once L is available.
   }, [L, defaultCenter, defaultZoom, mapInstance]); 
 
   useEffect(() => {
-    if (!mapInstance || !L || !rooms ) {
+    if (!mapInstance || !L || !rooms ) { 
       return; 
     }
 
@@ -130,6 +123,7 @@ export default function InteractiveMap({
     const validRooms = rooms.filter(room => room.lat != null && room.lng != null);
 
     if (validRooms.length === 0) {
+      mapInstance.invalidateSize();
       mapInstance.setView(defaultCenter, defaultZoom);
       return;
     }
@@ -144,7 +138,8 @@ export default function InteractiveMap({
     const latitudes = validRooms.map(r => r.lat!);
     const longitudes = validRooms.map(r => r.lng!);
     
-    if (latitudes.length === 0 || longitudes.length === 0) { // Should not happen if validRooms > 0
+    if (latitudes.length === 0 || longitudes.length === 0) { 
+        mapInstance.invalidateSize();
         mapInstance.setView(defaultCenter, defaultZoom);
         return;
     }
@@ -165,6 +160,7 @@ export default function InteractiveMap({
         else newZoom = 6;
     }
     
+    mapInstance.invalidateSize(); 
     mapInstance.setView([avgLat, avgLng], newZoom);
 
     Object.values(groupedRooms).forEach((roomsAtLocation) => {
@@ -180,6 +176,5 @@ export default function InteractiveMap({
 
   }, [rooms, mapInstance, L, defaultCenter, defaultZoom]);
 
-  return <div ref={mapNodeRef} style={{ height: '100%', width: '100%' }} className="rounded-lg shadow-lg bg-muted" />;
+  return <div ref={mapNodeRef} style={{ height: '100%', width: '100%' }} className="rounded-lg shadow-inner bg-muted" />;
 }
-
