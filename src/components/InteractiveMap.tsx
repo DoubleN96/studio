@@ -26,16 +26,13 @@ const createPopupHTML = (roomsInGroup: Room[]): string => {
   
   const address = `${firstRoom?.address_1 || ''}, ${firstRoom?.city || ''}`;
 
-  // Helper for single room photo (top image) or for individual items in a list (small square)
   const photoHTML = (room: Room, isSingleViewLayout: boolean) => {
     const imageSize = isSingleViewLayout ? { width: '100%', height: '100px', placeholder: "https://placehold.co/300x150.png" } : { width: '60px', height: '60px', placeholder: "https://placehold.co/60x60.png" };
     const marginBottom = isSingleViewLayout ? '5px' : '0';
     const imageHint = room.title ? room.title.substring(0,15) : (isSingleViewLayout ? "room interior" : "room thumbnail");
 
     const imageStyle = `width: ${imageSize.width}; height: ${imageSize.height}; object-fit: cover; border-radius: 0.25rem;`;
-    // For single view, container width is 100%. For group item, it's fixed.
     const containerStyle = `position: relative; width: ${imageSize.width}; height: ${imageSize.height}; margin-bottom: ${marginBottom}; border-radius: 0.25rem; overflow: hidden; flex-shrink: 0; ${!isSingleViewLayout ? 'margin-right: 8px;' : ''}`;
-
 
     return (room.photos && room.photos.length > 0)
     ? `<div style="${containerStyle}">
@@ -45,7 +42,6 @@ const createPopupHTML = (roomsInGroup: Room[]): string => {
          <img src="${imageSize.placeholder}" alt="No image available" style="${imageStyle}" data-ai-hint="${imageHint}" />
        </div>`;
   }
-
 
   const priceHTML = (room: Room, isGroupItem: boolean) => {
     const fontSize = isGroupItem ? '0.75rem' : '0.85rem';
@@ -82,11 +78,9 @@ const createPopupHTML = (roomsInGroup: Room[]): string => {
             
             return `
             <li style="display: flex; align-items: flex-start; background-color: hsla(var(--muted-hsl, 207 20% 92%), 0.4); padding: 6px; border-radius: 0.25rem; margin-bottom: 5px; border: 1px solid hsla(var(--border-hsl, 207 20% 88%), 0.5);">
-              <!-- Image Container -->
               <div style="width: 60px; height: 60px; margin-right: 8px; flex-shrink: 0; border-radius: 0.25rem; overflow: hidden;">
                 <img src="${roomPhotoUrl}" alt="${r.title || 'Room image'}" style="width: 100%; height: 100%; object-fit: cover;" data-ai-hint="${imageHint}" />
               </div>
-              <!-- Details Container -->
               <div style="flex-grow: 1; display: flex; flex-direction: column; justify-content: space-between; min-height: 60px;">
                 <p style="font-weight: 500; color: hsl(var(--foreground)); margin: 0 0 2px 0; line-height: 1.2; font-size: 0.7rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; max-height: 1.7rem;">${r.title || 'Habitación sin título'}</p>
                 <div style="margin-top: auto;">
@@ -120,53 +114,66 @@ export default function InteractiveMap({
   defaultZoom = 6,
 }: InteractiveMapProps) {
   const mapNodeRef = useRef<HTMLDivElement | null>(null);
-  const [L, setL] = useState<typeof LType | null>(null);
-  const [mapInstance, setMapInstance] = useState<LType.Map | null>(null);
+  const mapInstanceRef = useRef<LType.Map | null>(null);
+  const [leafletLib, setLeafletLib] = useState<typeof LType | null>(null);
+  const [isMapReady, setIsMapReady] = useState(false);
 
   useEffect(() => {
-    import('leaflet').then(leafletModule => {
-      setL(leafletModule.default || leafletModule);
+    import('leaflet').then(module => {
+      setLeafletLib(module.default || module);
     }).catch(error => console.error("Failed to load Leaflet library:", error));
   }, []);
 
   useEffect(() => {
-    if (!L || !mapNodeRef.current || mapInstance) {
-      return;
+    let mapInitTimerId: NodeJS.Timeout;
+    if (leafletLib && mapNodeRef.current && !mapInstanceRef.current) {
+      const map = leafletLib.map(mapNodeRef.current).setView(defaultCenter, defaultZoom);
+      
+      leafletLib.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      }).addTo(map);
+      
+      mapInstanceRef.current = map;
+      
+      mapInitTimerId = setTimeout(() => {
+        setIsMapReady(true);
+      }, 0); 
     }
-    
-    const map = L.map(mapNodeRef.current, {
-      scrollWheelZoom: true,
-    }).setView(defaultCenter, defaultZoom);
-    
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    }).addTo(map);
-    setMapInstance(map);
-    
     return () => {
-      if (map) { // Use the local 'map' variable for cleanup
-        map.remove();
-      }
+      clearTimeout(mapInitTimerId);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [L, defaultCenter, defaultZoom]); // mapInstance dependency removed from here
+  }, [leafletLib, defaultCenter, defaultZoom]);
 
-   useEffect(() => {
-    if (!mapInstance || !L || !rooms) { 
+  useEffect(() => {
+    return () => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
+      setIsMapReady(false);
+    };
+  }, []);
+
+
+  useEffect(() => {
+    if (!isMapReady || !leafletLib || !mapInstanceRef.current || !rooms) { 
       return; 
     }
 
-    mapInstance.eachLayer((layer) => {
+    const L = leafletLib;
+    const map = mapInstanceRef.current;
+
+    map.eachLayer((layer) => {
       if (layer instanceof L.Marker) {
-        mapInstance.removeLayer(layer);
+        map.removeLayer(layer);
       }
     });
 
     const validRooms = rooms.filter(room => room.lat != null && room.lng != null);
 
     if (validRooms.length === 0) {
-      mapInstance.invalidateSize();
-      mapInstance.setView(defaultCenter, defaultZoom);
+      map.invalidateSize();
+      map.setView(defaultCenter, defaultZoom);
       return;
     }
     
@@ -181,8 +188,8 @@ export default function InteractiveMap({
     const longitudes = validRooms.map(r => r.lng!);
     
     if (latitudes.length === 0 || longitudes.length === 0) { 
-        mapInstance.invalidateSize();
-        mapInstance.setView(defaultCenter, defaultZoom);
+        map.invalidateSize();
+        map.setView(defaultCenter, defaultZoom);
         return;
     }
 
@@ -202,8 +209,8 @@ export default function InteractiveMap({
         else newZoom = 6;
     }
     
-    mapInstance.invalidateSize(); 
-    mapInstance.setView([avgLat, avgLng], newZoom);
+    map.invalidateSize(); 
+    map.setView([avgLat, avgLng], newZoom);
 
     Object.values(groupedRooms).forEach((roomsAtLocation) => {
         if (roomsAtLocation.length > 0 && roomsAtLocation[0].lat != null && roomsAtLocation[0].lng != null) {
@@ -211,17 +218,18 @@ export default function InteractiveMap({
             const popupHTML = createPopupHTML(roomsAtLocation);
             
             L.marker(position)
-                .addTo(mapInstance)
+                .addTo(map)
                 .bindPopup(L.popup({ 
                     minWidth: roomsAtLocation.length > 1 ? 290 : 210, 
                     maxWidth: roomsAtLocation.length > 1 ? 300 : 230,
-                    maxHeight: 290 
+                    maxHeight: 280 
                 }).setContent(popupHTML));
         }
     });
 
-  }, [rooms, mapInstance, L, defaultCenter, defaultZoom]);
+  }, [rooms, isMapReady, leafletLib, defaultCenter, defaultZoom]);
 
   return <div ref={mapNodeRef} style={{ height: '100%', width: '100%' }} className="rounded-lg shadow-inner bg-muted" />;
 }
 
+    
