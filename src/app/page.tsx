@@ -204,15 +204,15 @@ export default function HomePage() {
         <div className="hidden md:block md:w-2/5 lg:w-1/3 border-4 border-red-500 p-1"> {/* Debug: Column border */}
           <div className="md:sticky md:top-24 h-[500px] bg-card border-2 border-blue-500 rounded-lg shadow-md p-1"> {/* Debug: Map container style */}
             {(isLoading && allRooms.length === 0) ? (
-               <div className="h-full w-full rounded-md bg-muted flex items-center justify-center text-muted-foreground">Cargando esqueleto del mapa...</div>
+               <div key="map-loading-state" className="h-full w-full rounded-md bg-muted flex items-center justify-center text-muted-foreground">Cargando esqueleto del mapa...</div>
             ) : (!isLoading && allRooms.length === 0 && !error) ? (
-              <Alert className="h-full flex flex-col items-center justify-center text-center">
+              <Alert key="map-no-rooms-state" className="h-full flex flex-col items-center justify-center text-center">
                 <MapPin className="h-8 w-8 mb-2 text-muted-foreground" />
                 <AlertTitle>Mapa no disponible</AlertTitle>
                 <AlertDescription>No hay propiedades para mostrar en el mapa en este momento.</AlertDescription>
               </Alert>
             ) : (
-              <DynamicMap rooms={filteredRooms.length > 0 ? filteredRooms : allRooms} />
+              <DynamicMap key="map-active-state" rooms={filteredRooms.length > 0 ? filteredRooms : allRooms} />
             )}
           </div>
         </div>
@@ -220,3 +220,4 @@ export default function HomePage() {
     </div>
   );
 }
+
