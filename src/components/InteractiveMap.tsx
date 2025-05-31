@@ -6,8 +6,8 @@ import type { LatLngExpression } from 'leaflet';
 import type { Room } from '@/lib/types';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import Image from 'next/image'; // Added for popups
-import { CalendarDays } from 'lucide-react'; // Added for popups
+import Image from 'next/image';
+import { CalendarDays } from 'lucide-react';
 
 // Import for Leaflet default icon compatibility, ensuring it runs client-side
 import 'leaflet-defaulticon-compatibility'; 
@@ -74,7 +74,14 @@ export default function InteractiveMap({
 
 
   return (
-    <MapContainer center={mapCenter} zoom={mapZoom} scrollWheelZoom={true} style={{ height: '100%', width: '100%' }} className="rounded-lg shadow-lg">
+    <MapContainer 
+      center={mapCenter} 
+      zoom={mapZoom} 
+      scrollWheelZoom={true} 
+      style={{ height: '100%', width: '100%' }} 
+      className="rounded-lg shadow-lg"
+      placeholder={<div className="h-full w-full flex items-center justify-center bg-muted text-muted-foreground"><p>Cargando mapa...</p></div>}
+    >
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -135,3 +142,4 @@ export default function InteractiveMap({
     </MapContainer>
   );
 }
+
