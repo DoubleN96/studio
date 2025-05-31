@@ -13,8 +13,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Info, MapPin } from "lucide-react";
 import { parseISO, isBefore, isAfter, isEqual, startOfDay, endOfDay } from 'date-fns';
 
-// NOTE: 'leaflet-defaulticon-compatibility' is now handled by LeafletClientSetup.tsx
-
 const ITEMS_PER_PAGE = 9;
 
 export default function HomePage() {
@@ -150,70 +148,65 @@ export default function HomePage() {
   }
 
   return (
-    <div> 
-      <h1 className="text-3xl font-bold mb-8 text-center text-primary">Encuentra tu Espacio Ideal</h1>
+    <div className="space-y-8"> 
+      <h1 className="text-3xl font-bold text-center text-primary">Encuentra tu Espacio Ideal</h1>
       
-      <div className="md:flex md:gap-8"> 
-        
-        <div className="md:w-3/5 lg:w-2/3 space-y-6">
-          <RoomFilters
-            onFilterChange={handleFilterChange}
-            initialFilters={filters} 
-          />
+      <RoomFilters
+        onFilterChange={handleFilterChange}
+        initialFilters={filters} 
+      />
 
-          {isLoading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
-              {Array.from({ length: ITEMS_PER_PAGE }).map((_, index) => (
-                <div key={index} className="space-y-3">
-                  <Skeleton className="h-[200px] w-full rounded-xl" />
-                  <Skeleton className="h-6 w-3/4" />
-                  <Skeleton className="h-4 w-1/2" />
-                  <Skeleton className="h-4 w-1/3" />
-                </div>
-              ))}
-            </div>
-          ) : paginatedRooms.length > 0 ? (
-            <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
-                {paginatedRooms.map((room) => (
-                  <RoomCard key={room.id} room={room} />
-                ))}
-              </div>
-              {totalPages > 1 && (
-                 <PaginationControls
-                    currentPage={currentPage}
-                    totalPages={totalPages}
-                    onPageChange={handlePageChange}
-                />
-               )}
-            </>
-          ) : (
-            <Alert className="max-w-md mx-auto">
-                <Info className="h-4 w-4" />
-                <AlertTitle>No se encontraron resultados</AlertTitle>
-                <AlertDescription>
-                Intenta ajustar tus filtros o revisa más tarde. Continuamente añadimos nuevas propiedades.
-                </AlertDescription>
-            </Alert>
-          )}
-        </div>
-
-        <div className="hidden md:block md:w-2/5 lg:w-1/3"> 
-          <div className="md:sticky md:top-24 h-[500px] bg-card border border-border rounded-lg shadow-md p-1"> 
-            {(isLoading && allRooms.length === 0) ? (
-               <div key="map-loading-state" className="h-full w-full rounded-md bg-muted flex items-center justify-center text-muted-foreground">Cargando esqueleto del mapa...</div>
-            ) : (!isLoading && allRooms.length === 0 && !error) ? (
-              <Alert key="map-no-rooms-state" className="h-full flex flex-col items-center justify-center text-center">
-                <MapPin className="h-8 w-8 mb-2 text-muted-foreground" />
-                <AlertTitle>Mapa no disponible</AlertTitle>
-                <AlertDescription>No hay propiedades para mostrar en el mapa en este momento.</AlertDescription>
-              </Alert>
-            ) : (
-              <DynamicMap key="map-active-state" rooms={filteredRooms.length > 0 ? filteredRooms : allRooms} />
-            )}
-          </div>
-        </div>
+      {/* Map Section */}
+      <div className="h-[500px] w-full bg-card border border-border rounded-lg shadow-md p-1">
+        {(isLoading && allRooms.length === 0) ? (
+           <div key="map-loading-state" className="h-full w-full rounded-md bg-muted flex items-center justify-center text-muted-foreground">Cargando datos para el mapa...</div>
+        ) : (!isLoading && allRooms.length === 0 && !error) ? (
+          <Alert key="map-no-rooms-state" className="h-full flex flex-col items-center justify-center text-center">
+            <MapPin className="h-8 w-8 mb-2 text-muted-foreground" />
+            <AlertTitle>Mapa no disponible</AlertTitle>
+            <AlertDescription>No hay propiedades para mostrar en el mapa en este momento.</AlertDescription>
+          </Alert>
+        ) : (
+          <DynamicMap key="map-active-state" rooms={filteredRooms.length > 0 ? filteredRooms : allRooms} />
+        )}
       </div>
+      
+      {/* Room Listings Section */}
+      {isLoading && allRooms.length === 0 ? ( // Skeleton only during initial full load if no rooms were fetched yet.
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {Array.from({ length: ITEMS_PER_PAGE }).map((_, index) => (
+            <div key={index} className="space-y-3">
+              <Skeleton className="h-[200px] w-full rounded-xl" />
+              <Skeleton className="h-6 w-3/4" />
+              <Skeleton className="h-4 w-1/2" />
+              <Skeleton className="h-4 w-1/3" />
+            </div>
+          ))}
+        </div>
+      ) : paginatedRooms.length > 0 ? (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {paginatedRooms.map((room) => (
+              <RoomCard key={room.id} room={room} />
+            ))}
+          </div>
+          {totalPages > 1 && (
+              <PaginationControls
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={handlePageChange}
+            />
+            )}
+        </>
+      ) : !error ? ( // Show "No results" if not loading, no paginated rooms, and no API error
+        <Alert className="max-w-md mx-auto">
+            <Info className="h-4 w-4" />
+            <AlertTitle>No se encontraron resultados</AlertTitle>
+            <AlertDescription>
+            Intenta ajustar tus filtros o revisa más tarde. Continuamente añadimos nuevas propiedades.
+            </AlertDescription>
+        </Alert>
+      ) : null }
     </div>
   );
 }
