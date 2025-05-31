@@ -20,7 +20,6 @@ interface GroupedRooms {
 }
 
 // Helper function to safely create and inject HTML for Popups
-// This function no longer needs to access a global L, as it just returns string HTML.
 const createPopupHTML = (roomsInGroup: Room[]): string => {
   const isGroup = roomsInGroup.length > 1;
   const title = isGroup 
@@ -89,61 +88,49 @@ export default function InteractiveMap({
   defaultZoom = 6,
 }: InteractiveMapProps) {
   const mapNodeRef = useRef<HTMLDivElement | null>(null);
-  const mapInstanceRef = useRef<LType.Map | null>(null);
-  const LPromiseRef = useRef<Promise<typeof LType> | null>(null);
-  const [leaflet, setLeaflet] = useState<typeof LType | null>(null);
+  const [L, setL] = useState<typeof LType | null>(null);
+  const [mapInstance, setMapInstance] = useState<LType.Map | null>(null);
 
-  // Effect to load Leaflet library and initialize the map instance once
   useEffect(() => {
-    if (!LPromiseRef.current) {
-      LPromiseRef.current = import('leaflet');
+    import('leaflet').then(leafletModule => {
+      setL(leafletModule);
+    }).catch(error => console.error("Failed to load Leaflet library:", error));
+  }, []);
+
+  useEffect(() => {
+    if (L && mapNodeRef.current && !mapInstance) {
+      const map = L.map(mapNodeRef.current).setView(defaultCenter, defaultZoom);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      }).addTo(map);
+      setMapInstance(map);
     }
-
-    LPromiseRef.current.then(loadedLeaflet => {
-      setLeaflet(loadedLeaflet); // Store loaded Leaflet in state
-      if (mapNodeRef.current && !mapInstanceRef.current) {
-        const map = loadedLeaflet.map(mapNodeRef.current, {
-          center: defaultCenter,
-          zoom: defaultZoom,
-          scrollWheelZoom: true,
-        });
-
-        loadedLeaflet.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-        }).addTo(map);
-        mapInstanceRef.current = map;
-      }
-    }).catch(error => console.error("Failed to load Leaflet:", error));
-
-    // Cleanup: remove map instance when component unmounts
+    
     return () => {
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
-        mapInstanceRef.current = null;
+      if (mapInstance) {
+        mapInstance.remove();
+        setMapInstance(null); 
       }
-      // Potentially reset leaflet state if needed, though usually not necessary for L itself
-      // setLeaflet(null); 
     };
-  }, [defaultCenter, defaultZoom]); // Only re-run if defaultCenter/Zoom change (though ideally they are stable)
+  // Ensure mapInstance is in dependency array for proper cleanup logic on re-initialization needs (e.g. if L or defaultCenter/Zoom somehow changed forcing a new map)
+  // Also, mapNodeRef.current itself is not a reactive dependency. The effect runs once L is available.
+  }, [L, defaultCenter, defaultZoom, mapInstance]); 
 
-  // Effect to update markers when rooms or Leaflet instance changes
   useEffect(() => {
-    if (!mapInstanceRef.current || !leaflet) { // Use leaflet from state
+    if (!mapInstance || !L || !rooms ) {
       return; 
     }
-    const map = mapInstanceRef.current;
 
-    // Clear existing markers
-    map.eachLayer((layer) => {
-      if (layer instanceof leaflet.Marker) { 
-        map.removeLayer(layer);
+    mapInstance.eachLayer((layer) => {
+      if (layer instanceof L.Marker) {
+        mapInstance.removeLayer(layer);
       }
     });
 
     const validRooms = rooms.filter(room => room.lat != null && room.lng != null);
 
     if (validRooms.length === 0) {
-      map.setView(defaultCenter, defaultZoom);
+      mapInstance.setView(defaultCenter, defaultZoom);
       return;
     }
     
@@ -156,37 +143,43 @@ export default function InteractiveMap({
 
     const latitudes = validRooms.map(r => r.lat!);
     const longitudes = validRooms.map(r => r.lng!);
+    
+    if (latitudes.length === 0 || longitudes.length === 0) { // Should not happen if validRooms > 0
+        mapInstance.setView(defaultCenter, defaultZoom);
+        return;
+    }
+
     const avgLat = latitudes.reduce((a, b) => a + b, 0) / latitudes.length;
     const avgLng = longitudes.reduce((a, b) => a + b, 0) / longitudes.length;
     
     let newZoom = defaultZoom;
-    if (Object.keys(groupedRooms).length === 1) { // Single group of rooms
-        newZoom = 13; // Zoom in closer for a single point
-    } else if (validRooms.length > 1) { // Multiple distinct locations
+    if (Object.keys(groupedRooms).length === 1 && validRooms.length > 0) {
+        newZoom = 13; 
+    } else if (validRooms.length > 1) {
         const latSpread = Math.max(...latitudes) - Math.min(...latitudes);
         const lngSpread = Math.max(...longitudes) - Math.min(...longitudes);
-        if (latSpread < 0.05 && lngSpread < 0.05) newZoom = 13; // Very close
+        if (latSpread < 0.05 && lngSpread < 0.05) newZoom = 13;
         else if (latSpread < 0.1 && lngSpread < 0.1) newZoom = 12;
         else if (latSpread < 0.5 && lngSpread < 0.5) newZoom = 10;
         else if (latSpread < 2 && lngSpread < 2) newZoom = 8;
-        else newZoom = 6; // Default for widely spread
+        else newZoom = 6;
     }
     
-    map.setView([avgLat, avgLng], newZoom);
+    mapInstance.setView([avgLat, avgLng], newZoom);
 
-    // Add new markers using the leaflet instance from state
     Object.values(groupedRooms).forEach((roomsAtLocation) => {
         if (roomsAtLocation.length > 0 && roomsAtLocation[0].lat != null && roomsAtLocation[0].lng != null) {
             const position: LatLngExpression = [roomsAtLocation[0].lat!, roomsAtLocation[0].lng!];
-            
             const popupHTML = createPopupHTML(roomsAtLocation);
-            leaflet.marker(position)
-                .addTo(map)
-                .bindPopup(leaflet.popup({ minWidth: roomsAtLocation.length > 1 ? 280 : 220, maxHeight: 300 }).setContent(popupHTML));
+            
+            L.marker(position)
+                .addTo(mapInstance)
+                .bindPopup(L.popup({ minWidth: roomsAtLocation.length > 1 ? 280 : 220, maxHeight: 300 }).setContent(popupHTML));
         }
     });
 
-  }, [rooms, defaultCenter, defaultZoom, leaflet]); // Depend on leaflet state instance
+  }, [rooms, mapInstance, L, defaultCenter, defaultZoom]);
 
   return <div ref={mapNodeRef} style={{ height: '100%', width: '100%' }} className="rounded-lg shadow-lg bg-muted" />;
 }
+
