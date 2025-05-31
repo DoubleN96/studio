@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, type Dispatch, type SetStateAction, useEffect } from 'react';
+import { useState, useEffect } from 'react'; // Added useEffect
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -13,9 +13,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CalendarIcon, DollarSign, Filter, MapPin as MapPinIcon } from 'lucide-react';
+import { CalendarIcon, DollarSign, Filter, MapPin as MapPinIcon, ChevronDown } from 'lucide-react'; // Added ChevronDown
 import { format, addDays, isBefore } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { cn } from '@/lib/utils'; // For placeholder styling
 
 export interface Filters {
   city: string;
@@ -30,16 +31,20 @@ interface RoomFiltersProps {
   availableCities: string[];
 }
 
-const ALL_CITIES_SELECT_VALUE = "_ALL_CITIES_"; // Special value for "All cities"
+const ALL_CITIES_SELECT_VALUE = "_ALL_CITIES_"; 
 
 export default function RoomFilters({ onFilterChange, initialFilters, availableCities }: RoomFiltersProps) {
   const [city, setCity] = useState(initialFilters.city);
   const [checkInDate, setCheckInDate] = useState<Date | undefined>(initialFilters.checkInDate);
   const [checkOutDate, setCheckOutDate] = useState<Date | undefined>(initialFilters.checkOutDate);
   const [maxPrice, setMaxPrice] = useState(initialFilters.maxPrice);
+  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
-    // Update local city state if initialFilters.city changes (e.g. after parent finishes loading cities)
+    setIsClient(true);
+  }, []);
+
+  useEffect(() => {
     setCity(initialFilters.city);
   }, [initialFilters.city]);
 
@@ -49,7 +54,7 @@ export default function RoomFilters({ onFilterChange, initialFilters, availableC
   };
 
   const handleClearFilters = () => {
-    setCity(initialFilters.city); // Reset city to the initial default (e.g., Madrid or "" for All)
+    setCity(initialFilters.city); 
     setCheckInDate(undefined);
     setCheckOutDate(undefined);
     setMaxPrice('');
@@ -67,29 +72,47 @@ export default function RoomFilters({ onFilterChange, initialFilters, availableC
     setCity(selectedValue === ALL_CITIES_SELECT_VALUE ? "" : selectedValue);
   };
 
+  const CitySelectPlaceholder = () => (
+    <div className={cn(
+      "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm text-muted-foreground",
+      "ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+      "cursor-not-allowed opacity-50" 
+    )}>
+      <div className="flex items-center">
+        <MapPinIcon className="h-5 w-5 mr-2 flex-shrink-0" />
+        <span>Selecciona ciudad</span>
+      </div>
+      <ChevronDown className="h-4 w-4 opacity-50" />
+    </div>
+  );
+
   return (
     <div className="p-6 mb-8 bg-card rounded-xl shadow-lg space-y-4 md:space-y-0 md:grid md:grid-cols-2 lg:grid-cols-5 md:gap-4 md:items-end">
       <div className="lg:col-span-1">
         <label htmlFor="city-filter" className="block text-sm font-medium text-foreground mb-1">Ciudad</label>
-        <Select 
-          value={city === "" ? ALL_CITIES_SELECT_VALUE : city} 
-          onValueChange={handleCitySelectChange}
-        >
-          <SelectTrigger className="w-full" id="city-filter">
-            <div className="flex items-center">
-              <MapPinIcon className="h-5 w-5 text-muted-foreground mr-2 flex-shrink-0" />
-              <SelectValue placeholder="Selecciona ciudad" />
-            </div>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL_CITIES_SELECT_VALUE}>Todas las ciudades</SelectItem>
-            {availableCities.map((cityName) => (
-              <SelectItem key={cityName} value={cityName}>
-                {cityName}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {isClient ? (
+          <Select 
+            value={city === "" ? ALL_CITIES_SELECT_VALUE : city} 
+            onValueChange={handleCitySelectChange}
+          >
+            <SelectTrigger className="w-full" id="city-filter">
+              <div className="flex items-center">
+                <MapPinIcon className="h-5 w-5 text-muted-foreground mr-2 flex-shrink-0" />
+                <SelectValue placeholder="Selecciona ciudad" />
+              </div>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_CITIES_SELECT_VALUE}>Todas las ciudades</SelectItem>
+              {availableCities.map((cityName) => (
+                <SelectItem key={cityName} value={cityName}>
+                  {cityName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <CitySelectPlaceholder />
+        )}
       </div>
 
       <div className="lg:col-span-1">
@@ -170,4 +193,3 @@ export default function RoomFilters({ onFilterChange, initialFilters, availableC
     </div>
   );
 }
-
