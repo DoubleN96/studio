@@ -2,8 +2,8 @@
 'use client';
 
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
-import { useState, useEffect } from 'react'; // Added useState, useEffect
-import type L from 'leaflet';
+import { useState, useEffect } from 'react';
+// import type L from 'leaflet'; // Not strictly needed if not using L.map directly
 import type { LatLngExpression } from 'leaflet';
 import type { Room } from '@/lib/types';
 import Link from 'next/link';
@@ -11,8 +11,7 @@ import { Button } from '@/components/ui/button';
 import Image from 'next/image';
 import { CalendarDays } from 'lucide-react';
 
-// Import for Leaflet default icon compatibility, ensuring it runs client-side
-import 'leaflet-defaulticon-compatibility';
+// Removed: import 'leaflet-defaulticon-compatibility'; // Now handled by LeafletClientSetup.tsx
 
 interface InteractiveMapProps {
   rooms: Room[];
@@ -38,7 +37,7 @@ export default function InteractiveMap({
   const validRooms = rooms.filter(room => room.lat != null && room.lng != null);
 
   if (!isClient) {
-    // Render a placeholder or null during SSR or before client mount
+    // Render a placeholder during SSR or before client mount
     return <div className="h-full w-full flex items-center justify-center bg-muted rounded-lg"><p className="text-muted-foreground text-center p-4">Inicializando mapa...</p></div>;
   }
 
@@ -101,7 +100,6 @@ export default function InteractiveMap({
           return null;
         }
         const position: LatLngExpression = [roomsInFlat[0].lat, roomsInFlat[0].lng];
-
         const representativeRoom = roomsInFlat[0];
 
         return (
@@ -152,5 +150,3 @@ export default function InteractiveMap({
     </MapContainer>
   );
 }
-
-    

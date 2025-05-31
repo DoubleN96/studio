@@ -9,7 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { MapPinned } from "lucide-react";
 
-// NOTE: 'leaflet-defaulticon-compatibility' is now imported in InteractiveMap.tsx
+// NOTE: 'leaflet-defaulticon-compatibility' is now handled by LeafletClientSetup.tsx
 
 // Dynamically import the map component to ensure it's client-side only
 const DynamicMap = dynamic(() => import('@/components/InteractiveMap'), {

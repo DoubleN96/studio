@@ -13,9 +13,9 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Info, MapPin } from "lucide-react";
 import { parseISO, isBefore, isAfter, isEqual, startOfDay, endOfDay } from 'date-fns';
 
-// NOTE: 'leaflet-defaulticon-compatibility' is now imported in InteractiveMap.tsx
+// NOTE: 'leaflet-defaulticon-compatibility' is now handled by LeafletClientSetup.tsx
 
-const ITEMS_PER_PAGE = 9; // Adjusted for potentially less space in the left column
+const ITEMS_PER_PAGE = 9;
 
 export default function HomePage() {
   const [allRooms, setAllRooms] = useState<Room[]>([]);
@@ -30,7 +30,6 @@ export default function HomePage() {
   });
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Dynamically import the map component to ensure it's client-side only
   const DynamicMap = dynamic(() => import('@/components/InteractiveMap'), {
     ssr: false,
     loading: () => <div className="h-full w-full rounded-md bg-muted flex items-center justify-center text-muted-foreground">Cargando Mapa...</div>,
@@ -151,12 +150,11 @@ export default function HomePage() {
   }
 
   return (
-    <div> {/* Main container for the whole page */}
+    <div> 
       <h1 className="text-3xl font-bold mb-8 text-center text-primary">Encuentra tu Espacio Ideal</h1>
       
-      <div className="md:flex md:gap-8"> {/* This is the flex container for the two-column layout */}
+      <div className="md:flex md:gap-8"> 
         
-        {/* Left Column: Filters, Rooms Grid, Pagination */}
         <div className="md:w-3/5 lg:w-2/3 space-y-6">
           <RoomFilters
             onFilterChange={handleFilterChange}
@@ -200,9 +198,8 @@ export default function HomePage() {
           )}
         </div>
 
-        {/* Right Column: Map - Added borders and fixed height for debugging */}
-        <div className="hidden md:block md:w-2/5 lg:w-1/3 border-4 border-red-500 p-1"> {/* Debug: Column border */}
-          <div className="md:sticky md:top-24 h-[500px] bg-card border-2 border-blue-500 rounded-lg shadow-md p-1"> {/* Debug: Map container style */}
+        <div className="hidden md:block md:w-2/5 lg:w-1/3"> 
+          <div className="md:sticky md:top-24 h-[500px] bg-card border border-border rounded-lg shadow-md p-1"> 
             {(isLoading && allRooms.length === 0) ? (
                <div key="map-loading-state" className="h-full w-full rounded-md bg-muted flex items-center justify-center text-muted-foreground">Cargando esqueleto del mapa...</div>
             ) : (!isLoading && allRooms.length === 0 && !error) ? (
@@ -220,4 +217,3 @@ export default function HomePage() {
     </div>
   );
 }
-

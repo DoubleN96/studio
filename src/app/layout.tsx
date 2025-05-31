@@ -1,11 +1,15 @@
+
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { Toaster } from "@/components/ui/toaster"
-import 'leaflet/dist/leaflet.css';
-// import 'leaflet-defaulticon-compatibility'; // MOVED to src/app/map/page.tsx
+import LeafletClientSetup from '@/components/LeafletClientSetup'; // Import the new component
+
+// Removed direct import of 'leaflet/dist/leaflet.css';
+// Removed direct import of 'leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility.css';
+// Removed direct import of 'leaflet-defaulticon-compatibility'; (JS part)
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -33,6 +37,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen`}
         suppressHydrationWarning={true}
       >
+        <LeafletClientSetup /> {/* Add the setup component here */}
         <Header />
         <main className="flex-grow container mx-auto px-4 py-8">
           {children}
