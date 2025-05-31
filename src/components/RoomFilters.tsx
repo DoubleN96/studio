@@ -30,6 +30,8 @@ interface RoomFiltersProps {
   availableCities: string[];
 }
 
+const ALL_CITIES_SELECT_VALUE = "_ALL_CITIES_"; // Special value for "All cities"
+
 export default function RoomFilters({ onFilterChange, initialFilters, availableCities }: RoomFiltersProps) {
   const [city, setCity] = useState(initialFilters.city);
   const [checkInDate, setCheckInDate] = useState<Date | undefined>(initialFilters.checkInDate);
@@ -37,7 +39,7 @@ export default function RoomFilters({ onFilterChange, initialFilters, availableC
   const [maxPrice, setMaxPrice] = useState(initialFilters.maxPrice);
 
   useEffect(() => {
-    // Update local state if initialFilters.city changes (e.g. after parent finishes loading cities)
+    // Update local city state if initialFilters.city changes (e.g. after parent finishes loading cities)
     setCity(initialFilters.city);
   }, [initialFilters.city]);
 
@@ -47,7 +49,7 @@ export default function RoomFilters({ onFilterChange, initialFilters, availableC
   };
 
   const handleClearFilters = () => {
-    setCity(initialFilters.city); // Reset city to the initial default (e.g., Madrid or "All")
+    setCity(initialFilters.city); // Reset city to the initial default (e.g., Madrid or "" for All)
     setCheckInDate(undefined);
     setCheckOutDate(undefined);
     setMaxPrice('');
@@ -61,15 +63,18 @@ export default function RoomFilters({ onFilterChange, initialFilters, availableC
     }
   };
   
-  const handleCityChange = (value: string) => {
-    setCity(value);
+  const handleCitySelectChange = (selectedValue: string) => {
+    setCity(selectedValue === ALL_CITIES_SELECT_VALUE ? "" : selectedValue);
   };
 
   return (
     <div className="p-6 mb-8 bg-card rounded-xl shadow-lg space-y-4 md:space-y-0 md:grid md:grid-cols-2 lg:grid-cols-5 md:gap-4 md:items-end">
       <div className="lg:col-span-1">
         <label htmlFor="city-filter" className="block text-sm font-medium text-foreground mb-1">Ciudad</label>
-        <Select value={city} onValueChange={handleCityChange}>
+        <Select 
+          value={city === "" ? ALL_CITIES_SELECT_VALUE : city} 
+          onValueChange={handleCitySelectChange}
+        >
           <SelectTrigger className="w-full" id="city-filter">
             <div className="flex items-center">
               <MapPinIcon className="h-5 w-5 text-muted-foreground mr-2 flex-shrink-0" />
@@ -77,7 +82,7 @@ export default function RoomFilters({ onFilterChange, initialFilters, availableC
             </div>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Todas las ciudades</SelectItem>
+            <SelectItem value={ALL_CITIES_SELECT_VALUE}>Todas las ciudades</SelectItem>
             {availableCities.map((cityName) => (
               <SelectItem key={cityName} value={cityName}>
                 {cityName}
