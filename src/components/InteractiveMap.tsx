@@ -2,16 +2,14 @@
 'use client';
 
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
-import { useState, useEffect } from 'react';
-// import type L from 'leaflet'; // Not strictly needed if not using L.map directly
+import { useState, useEffect, useRef } from 'react';
+import type L from 'leaflet'; // Import L for type annotation
 import type { LatLngExpression } from 'leaflet';
 import type { Room } from '@/lib/types';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import Image from 'next/image';
 import { CalendarDays } from 'lucide-react';
-
-// Removed: import 'leaflet-defaulticon-compatibility'; // Now handled by LeafletClientSetup.tsx
 
 interface InteractiveMapProps {
   rooms: Room[];
@@ -29,10 +27,19 @@ export default function InteractiveMap({
   defaultZoom = 6,
 }: InteractiveMapProps) {
   const [isClient, setIsClient] = useState(false);
+  const mapRef = useRef<L.Map | null>(null); // Ref to store the map instance
 
   useEffect(() => {
     setIsClient(true);
-  }, []);
+
+    // Cleanup function for when the component unmounts
+    return () => {
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+    };
+  }, []); // Empty dependency array ensures this runs once on mount and cleanup on unmount
 
   const validRooms = rooms.filter(room => room.lat != null && room.lng != null);
 
@@ -90,6 +97,7 @@ export default function InteractiveMap({
       style={{ height: '100%', width: '100%' }}
       className="rounded-lg shadow-lg"
       placeholder={<div className="h-full w-full flex items-center justify-center bg-muted text-muted-foreground"><p>Cargando mapa...</p></div>}
+      whenCreated={(mapInstance) => { mapRef.current = mapInstance; }} // Assign map instance to ref
     >
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
