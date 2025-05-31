@@ -40,7 +40,7 @@ export default function HomePage() {
   // Effect to update default city filter once allRooms are loaded
   useEffect(() => {
     if (allRooms.length > 0) {
-        const newDefaultCity = uniqueCities.includes('Madrid') ? 'Madrid' : '';
+        const newDefaultCity = uniqueCities.includes('Madrid') ? 'Madrid' : (uniqueCities.length > 0 ? "" : ""); // Default to "" (All Cities) if Madrid not present
         setFilters(prevFilters => ({
             ...prevFilters,
             city: newDefaultCity
@@ -140,6 +140,23 @@ export default function HomePage() {
     });
   }, [allRooms, filters]);
 
+  const roomsByFlat = useMemo(() => {
+    const grouped: { [key: string]: Room[] } = {};
+    allRooms.forEach(room => {
+      // A more robust flat identifier might be needed if addresses are not perfectly unique
+      // or if a 'flat_id' or 'property_code' is available from the API.
+      // For now, using address and city.
+      if (room.address_1 && room.city) {
+        const flatKey = `${room.address_1.trim().toLowerCase()}|${room.city.trim().toLowerCase()}`;
+        if (!grouped[flatKey]) {
+          grouped[flatKey] = [];
+        }
+        grouped[flatKey].push(room);
+      }
+    });
+    return grouped;
+  }, [allRooms]);
+
   const paginatedRooms = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     const endIndex = startIndex + ITEMS_PER_PAGE;
@@ -208,9 +225,11 @@ export default function HomePage() {
       ) : paginatedRooms.length > 0 ? (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {paginatedRooms.map((room) => (
-              <RoomCard key={room.id} room={room} />
-            ))}
+            {paginatedRooms.map((room) => {
+               const flatKey = room.address_1 && room.city ? `${room.address_1.trim().toLowerCase()}|${room.city.trim().toLowerCase()}` : null;
+               const siblingRoomsInFlat = flatKey ? (roomsByFlat[flatKey] || []).filter(r => r.id !== room.id) : [];
+              return <RoomCard key={room.id} room={room} siblingRooms={siblingRoomsInFlat} />;
+            })}
           </div>
           {totalPages > 1 && (
               <PaginationControls
@@ -232,4 +251,3 @@ export default function HomePage() {
     </div>
   );
 }
-
