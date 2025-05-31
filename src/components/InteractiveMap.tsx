@@ -26,31 +26,37 @@ const createPopupHTML = (roomsInGroup: Room[]): string => {
   
   const address = `${firstRoom?.address_1 || ''}, ${firstRoom?.city || ''}`;
 
-  const photoHTML = (room: Room, isGroupItem: boolean) => {
-    const imageHeight = isGroupItem ? '50px' : '100px';
-    const marginBottom = isGroupItem ? '3px' : '5px';
-    const placeholderUrl = isGroupItem ? "https://placehold.co/200x100.png" : "https://placehold.co/300x150.png";
-    const imageHint = room.title ? room.title.substring(0,15) : (isGroupItem ? "room thumbnail" : "room interior");
+  // Helper for single room photo (top image) or for individual items in a list (small square)
+  const photoHTML = (room: Room, isSingleViewLayout: boolean) => {
+    const imageSize = isSingleViewLayout ? { width: '100%', height: '100px', placeholder: "https://placehold.co/300x150.png" } : { width: '60px', height: '60px', placeholder: "https://placehold.co/60x60.png" };
+    const marginBottom = isSingleViewLayout ? '5px' : '0';
+    const imageHint = room.title ? room.title.substring(0,15) : (isSingleViewLayout ? "room interior" : "room thumbnail");
+
+    const imageStyle = `width: ${imageSize.width}; height: ${imageSize.height}; object-fit: cover; border-radius: 0.25rem;`;
+    // For single view, container width is 100%. For group item, it's fixed.
+    const containerStyle = `position: relative; width: ${imageSize.width}; height: ${imageSize.height}; margin-bottom: ${marginBottom}; border-radius: 0.25rem; overflow: hidden; flex-shrink: 0; ${!isSingleViewLayout ? 'margin-right: 8px;' : ''}`;
+
 
     return (room.photos && room.photos.length > 0)
-    ? `<div style="position: relative; width: 100%; height: ${imageHeight}; margin-bottom: ${marginBottom}; border-radius: 0.25rem; overflow: hidden;">
-         <img src="${room.photos[0].url_thumbnail || placeholderUrl}" alt="${room.title || 'Room image'}" style="width: 100%; height: 100%; object-fit: cover;" data-ai-hint="${imageHint}" />
+    ? `<div style="${containerStyle}">
+         <img src="${room.photos[0].url_thumbnail || imageSize.placeholder}" alt="${room.title || 'Room image'}" style="${imageStyle}" data-ai-hint="${imageHint}" />
        </div>`
-    : `<div style="position: relative; width: 100%; height: ${imageHeight}; margin-bottom: ${marginBottom}; border-radius: 0.25rem; overflow: hidden; background-color: #f0f0f0;">
-         <img src="${placeholderUrl}" alt="No image available" style="width: 100%; height: 100%; object-fit: cover;" data-ai-hint="${imageHint}" />
+    : `<div style="${containerStyle} background-color: #f0f0f0;">
+         <img src="${imageSize.placeholder}" alt="No image available" style="${imageStyle}" data-ai-hint="${imageHint}" />
        </div>`;
   }
 
+
   const priceHTML = (room: Room, isGroupItem: boolean) => {
-    const fontSize = isGroupItem ? '0.75rem' : '0.85rem'; // Reduced
-    const marginBottom = isGroupItem ? '1px' : '2px'; // Reduced
-    return `<p style="color: hsl(var(--primary)); font-weight: 600; margin-bottom: ${marginBottom}; font-size: ${fontSize}; line-height: 1.2;">${room.monthly_price.toLocaleString('es-ES', { style: 'currency', currency: room.currency_code || 'EUR' })}/mes</p>`;
+    const fontSize = isGroupItem ? '0.75rem' : '0.85rem';
+    const marginBottom = isGroupItem ? '1px' : '2px';
+    return `<p style="color: hsl(var(--primary)); font-weight: 600; margin: 0 0 ${marginBottom} 0; font-size: ${fontSize}; line-height: 1.2;">${room.monthly_price.toLocaleString('es-ES', { style: 'currency', currency: room.currency_code || 'EUR' })}/mes</p>`;
   }
 
   const availabilityHTML = (room: Room, isGroupItem: boolean) => {
-    const fontSize = isGroupItem ? '0.65rem' : '0.7rem'; // Reduced
+    const fontSize = isGroupItem ? '0.65rem' : '0.7rem';
     return room.availability?.available_from
-    ? `<p style="color: hsl(var(--muted-foreground)); font-size: ${fontSize}; display: flex; align-items: center; margin-top: 1px; margin-bottom: 2px; line-height: 1.2;">
+    ? `<p style="color: hsl(var(--muted-foreground)); font-size: ${fontSize}; display: flex; align-items: center; margin: 0 0 2px 0; line-height: 1.2;">
          <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 3px; flex-shrink: 0;"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"></rect><line x1="16" x2="16" y1="2" y2="6"></line><line x1="8" x2="8" y1="2" y2="6"></line><line x1="3" x2="21" y1="10" y2="10"></line></svg>
          <span style="white-space: nowrap;">Desde: ${new Date(room.availability.available_from).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}</span>
        </p>`
@@ -58,34 +64,46 @@ const createPopupHTML = (roomsInGroup: Room[]): string => {
   }
   
   const detailsLinkHTML = (room: Room, isGroupItem: boolean) => {
-    const fontSize = isGroupItem ? '0.7rem' : '0.75rem'; // Reduced
-    return `<a href="/room/${room.id}" target="_blank" style="padding: 0; height: auto; font-size: ${fontSize}; margin-top: 2px; color: hsl(var(--accent)); text-decoration: none; display: inline-block; font-weight:500;">Ver Detalles &rarr;</a>`;
+    const fontSize = isGroupItem ? '0.7rem' : '0.75rem';
+    return `<a href="/room/${room.id}" target="_blank" style="padding: 0; height: auto; font-size: ${fontSize}; color: hsl(var(--accent)); text-decoration: none; display: inline-block; font-weight:500;">Ver Detalles &rarr;</a>`;
   }
 
   if (isGroup) {
     return `
-      <div class="leaflet-popup-custom-content" style="width: 230px; max-height: 260px; font-size: 0.75rem;">
+      <div class="leaflet-popup-custom-content" style="width: 290px; max-height: 280px; font-size: 0.75rem;">
         <h3 style="color: hsl(var(--primary)); border-bottom: 1px solid hsl(var(--border)); padding-bottom: 2px; margin-bottom:3px; font-size: 0.9rem; font-weight: 600; line-height: 1.3;">
           ${titleText}
         </h3>
         <p style="color: hsl(var(--muted-foreground)); margin-top: -1px; margin-bottom: 4px; font-size: 0.65rem; line-height: 1.2;">${address}</p>
-        <ul style="max-height: 180px; overflow-y: auto; padding-right: 5px; list-style: none; padding-left: 0; margin:0;">
-          ${roomsInGroup.map(r => `
-            <li style="background-color: hsla(var(--muted-hsl, 207 20% 92%), 0.4); padding: 6px; border-radius: 0.25rem; margin-bottom: 5px; border: 1px solid hsla(var(--border-hsl, 207 20% 88%), 0.5);">
-              ${photoHTML(r, true)}
-              <p style="font-weight: 500; color: hsl(var(--foreground)); margin-bottom: 1px; line-height: 1.2; font-size: 0.7rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; height: 1.4rem; ">${r.title || 'Habitación sin título'}</p>
-              ${priceHTML(r, true)}
-              ${availabilityHTML(r, true)}
-              ${detailsLinkHTML(r, true)}
+        <ul style="max-height: 200px; overflow-y: auto; padding-right: 5px; list-style: none; padding-left: 0; margin:0;">
+          ${roomsInGroup.map(r => {
+            const imageHint = r.title ? r.title.substring(0,15) : "room thumbnail";
+            const roomPhotoUrl = (r.photos && r.photos.length > 0 && r.photos[0].url_thumbnail) ? r.photos[0].url_thumbnail : 'https://placehold.co/60x60.png';
+            
+            return `
+            <li style="display: flex; align-items: flex-start; background-color: hsla(var(--muted-hsl, 207 20% 92%), 0.4); padding: 6px; border-radius: 0.25rem; margin-bottom: 5px; border: 1px solid hsla(var(--border-hsl, 207 20% 88%), 0.5);">
+              <!-- Image Container -->
+              <div style="width: 60px; height: 60px; margin-right: 8px; flex-shrink: 0; border-radius: 0.25rem; overflow: hidden;">
+                <img src="${roomPhotoUrl}" alt="${r.title || 'Room image'}" style="width: 100%; height: 100%; object-fit: cover;" data-ai-hint="${imageHint}" />
+              </div>
+              <!-- Details Container -->
+              <div style="flex-grow: 1; display: flex; flex-direction: column; justify-content: space-between; min-height: 60px;">
+                <p style="font-weight: 500; color: hsl(var(--foreground)); margin: 0 0 2px 0; line-height: 1.2; font-size: 0.7rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; max-height: 1.7rem;">${r.title || 'Habitación sin título'}</p>
+                <div style="margin-top: auto;">
+                  ${priceHTML(r, true)}
+                  ${availabilityHTML(r, true)}
+                  ${detailsLinkHTML(r, true)}
+                </div>
+              </div>
             </li>
-          `).join('')}
+          `}).join('')}
         </ul>
       </div>
     `;
   } else { 
      return `
       <div class="leaflet-popup-custom-content" style="width: 210px; font-size: 0.75rem;">
-        ${photoHTML(firstRoom, false)}
+        ${photoHTML(firstRoom, true)}
         <h3 style="color: hsl(var(--primary)); margin-top: ${firstRoom.photos && firstRoom.photos.length > 0 ? '3px' : '0'}; margin-bottom: 1px; font-size: 0.9rem; line-height: 1.3; font-weight:600;">${titleText}</h3>
         <p style="color: hsl(var(--muted-foreground)); margin-bottom: 2px; font-size: 0.7rem; line-height: 1.2;">${address}</p>
         ${priceHTML(firstRoom, false)}
@@ -107,38 +125,37 @@ export default function InteractiveMap({
 
   useEffect(() => {
     import('leaflet').then(leafletModule => {
-      setL(leafletModule.default || leafletModule); // Handle CJS/ESM interop
+      setL(leafletModule.default || leafletModule);
     }).catch(error => console.error("Failed to load Leaflet library:", error));
   }, []);
 
   useEffect(() => {
-    if (L && mapNodeRef.current && !mapInstance) {
-      const map = L.map(mapNodeRef.current, {
-        scrollWheelZoom: true, // Enable scroll wheel zoom by default
-      }).setView(defaultCenter, defaultZoom);
-      
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      }).addTo(map);
-      setMapInstance(map);
+    if (!L || !mapNodeRef.current || mapInstance) {
+      return;
     }
     
-    // Cleanup function
+    const map = L.map(mapNodeRef.current, {
+      scrollWheelZoom: true,
+    }).setView(defaultCenter, defaultZoom);
+    
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    }).addTo(map);
+    setMapInstance(map);
+    
     return () => {
-      if (mapInstance) {
-        mapInstance.remove();
-        setMapInstance(null); 
+      if (map) { // Use the local 'map' variable for cleanup
+        map.remove();
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps 
-  }, [L, defaultCenter, defaultZoom]); // mapInstance removed from deps to prevent re-init loop
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [L, defaultCenter, defaultZoom]); // mapInstance dependency removed from here
 
-  useEffect(() => {
-    if (!mapInstance || !L || !rooms ) { 
+   useEffect(() => {
+    if (!mapInstance || !L || !rooms) { 
       return; 
     }
 
-    // Clear existing markers
     mapInstance.eachLayer((layer) => {
       if (layer instanceof L.Marker) {
         mapInstance.removeLayer(layer);
@@ -154,7 +171,7 @@ export default function InteractiveMap({
     }
     
     const groupedRooms = validRooms.reduce((acc, room) => {
-        const key = `${room.lat!.toFixed(5)},${room.lng!.toFixed(5)}`; // Group by slightly rounded coords
+        const key = `${room.lat!.toFixed(5)},${room.lng!.toFixed(5)}`;
         if (!acc[key]) acc[key] = [];
         acc[key].push(room);
         return acc;
@@ -173,7 +190,7 @@ export default function InteractiveMap({
     const avgLng = longitudes.reduce((a, b) => a + b, 0) / longitudes.length;
     
     let newZoom = defaultZoom;
-    if (Object.keys(groupedRooms).length === 1 && validRooms.length > 0) { // Only one marker group
+    if (Object.keys(groupedRooms).length === 1 && validRooms.length > 0) {
         newZoom = 13; 
     } else if (validRooms.length > 1) {
         const latSpread = Math.max(...latitudes) - Math.min(...latitudes);
@@ -196,9 +213,9 @@ export default function InteractiveMap({
             L.marker(position)
                 .addTo(mapInstance)
                 .bindPopup(L.popup({ 
-                    minWidth: roomsAtLocation.length > 1 ? 230 : 210, 
-                    maxWidth: roomsAtLocation.length > 1 ? 250 : 230, // Adjusted maxWidth
-                    maxHeight: 270 // Slightly more than content max height
+                    minWidth: roomsAtLocation.length > 1 ? 290 : 210, 
+                    maxWidth: roomsAtLocation.length > 1 ? 300 : 230,
+                    maxHeight: 290 
                 }).setContent(popupHTML));
         }
     });
