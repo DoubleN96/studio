@@ -2,10 +2,9 @@
 'use client';
 
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
-// Removed useState, useEffect, useRef as we are removing manual instance management
-// Kept L for type, but LeafletMapInstance is not directly used in ref anymore
-import type L from 'leaflet'; 
-import type { LatLngExpression } from 'leaflet'; 
+import { useState, useEffect } from 'react'; // Added useState, useEffect
+import type L from 'leaflet';
+import type { LatLngExpression } from 'leaflet';
 import type { Room } from '@/lib/types';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -13,7 +12,7 @@ import Image from 'next/image';
 import { CalendarDays } from 'lucide-react';
 
 // Import for Leaflet default icon compatibility, ensuring it runs client-side
-import 'leaflet-defaulticon-compatibility'; 
+import 'leaflet-defaulticon-compatibility';
 
 interface InteractiveMapProps {
   rooms: Room[];
@@ -30,9 +29,18 @@ export default function InteractiveMap({
   defaultCenter = [40.416775, -3.703790], // Default to Madrid
   defaultZoom = 6,
 }: InteractiveMapProps) {
-  // Removed mapInstanceRef and useEffect for cleanup
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const validRooms = rooms.filter(room => room.lat != null && room.lng != null);
+
+  if (!isClient) {
+    // Render a placeholder or null during SSR or before client mount
+    return <div className="h-full w-full flex items-center justify-center bg-muted rounded-lg"><p className="text-muted-foreground text-center p-4">Inicializando mapa...</p></div>;
+  }
 
   if (validRooms.length === 0) {
     return (
@@ -62,30 +70,27 @@ export default function InteractiveMap({
     const avgLat = latitudes.reduce((a, b) => a + b, 0) / latitudes.length;
     const avgLng = longitudes.reduce((a, b) => a + b, 0) / longitudes.length;
     mapCenter = [avgLat, avgLng];
-    
-    if (Object.keys(groupedRooms).length === 1) { 
-        mapZoom = 13; 
+
+    if (Object.keys(groupedRooms).length === 1) {
+        mapZoom = 13;
     } else if (validRooms.length > 1) {
         const latSpread = Math.max(...latitudes) - Math.min(...latitudes);
         const lngSpread = Math.max(...longitudes) - Math.min(...longitudes);
-        if (latSpread < 0.1 && lngSpread < 0.1) mapZoom = 12; 
+        if (latSpread < 0.1 && lngSpread < 0.1) mapZoom = 12;
         else if (latSpread < 0.5 && lngSpread < 0.5) mapZoom = 10;
         else if (latSpread < 2 && lngSpread < 2) mapZoom = 8;
-        else mapZoom = 6; 
+        else mapZoom = 6;
     }
   }
 
-  // Removed handleWhenCreated function
-
   return (
-    <MapContainer 
-      center={mapCenter} 
-      zoom={mapZoom} 
-      scrollWheelZoom={true} 
-      style={{ height: '100%', width: '100%' }} 
+    <MapContainer
+      center={mapCenter}
+      zoom={mapZoom}
+      scrollWheelZoom={true}
+      style={{ height: '100%', width: '100%' }}
       className="rounded-lg shadow-lg"
       placeholder={<div className="h-full w-full flex items-center justify-center bg-muted text-muted-foreground"><p>Cargando mapa...</p></div>}
-      // Removed whenCreated prop
     >
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -96,7 +101,7 @@ export default function InteractiveMap({
           return null;
         }
         const position: LatLngExpression = [roomsInFlat[0].lat, roomsInFlat[0].lng];
-        
+
         const representativeRoom = roomsInFlat[0];
 
         return (
@@ -104,12 +109,12 @@ export default function InteractiveMap({
             <Popup minWidth={280} maxHeight={300}>
               <div className="space-y-2">
                 <h3 className="text-base font-semibold mb-2 border-b pb-1.5 text-primary">
-                  {roomsInFlat.length > 1 
-                    ? `${roomsInFlat.length} habitaciones en esta ubicación:` 
+                  {roomsInFlat.length > 1
+                    ? `${roomsInFlat.length} habitaciones en esta ubicación:`
                     : representativeRoom.title || 'Detalles de la Habitación'}
                 </h3>
                 <p className="text-xs text-muted-foreground -mt-1 mb-2">{representativeRoom.address_1}, {representativeRoom.city}</p>
-                
+
                 <ul className="space-y-3 max-h-60 overflow-y-auto pr-1">
                   {roomsInFlat.map(room => (
                     <li key={room.id} className="text-xs p-2 bg-muted/30 rounded-md shadow-sm">
@@ -147,3 +152,5 @@ export default function InteractiveMap({
     </MapContainer>
   );
 }
+
+    
