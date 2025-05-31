@@ -2,20 +2,21 @@
 'use client';
 
 import { useEffect } from 'react';
-import 'leaflet/dist/leaflet.css'; // CSS import at the top of a 'use client' component
+import 'leaflet/dist/leaflet.css'; // CSS de Leaflet
+import 'leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility.css'; // CSS para los iconos por defecto
 
 export default function LeafletClientSetup() {
   useEffect(() => {
-    // Dynamically import the JS module to ensure it's client-side only
-    // and runs after mount.
-    import('leaflet-defaulticon-compatibility')
+    // Importar dinámicamente el módulo JS para asegurar que solo se ejecute en el cliente
+    // y después del montaje inicial.
+    import('leaflet-defaulticon-compatibility') // Esto importa la parte JS del parche
       .then(() => {
-        // Optional: console.log('Leaflet Default Icon Compatibility loaded client-side.');
+        // Opcional: console.log('Leaflet Default Icon Compatibility JS loaded client-side.');
       })
       .catch(error => {
-        // Optional: console.error('Error loading Leaflet Default Icon Compatibility:', error);
+        // Opcional: console.error('Error loading Leaflet Default Icon Compatibility JS:', error);
       });
-  }, []); // Empty dependency array ensures this runs once on mount
+  }, []); // El array de dependencias vacío asegura que esto se ejecute una vez al montar
 
-  return null; // This component does not render anything visible
+  return null; // Este componente no renderiza nada visible
 }
