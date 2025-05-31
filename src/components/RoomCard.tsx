@@ -5,13 +5,13 @@ import Link from 'next/link';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { MapPin, CalendarDays, BedDouble, ListCollapse } from 'lucide-react';
+import { MapPin, CalendarDays, BedDouble } from 'lucide-react'; // Removed ListCollapse
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 interface RoomCardProps {
   room: Room;
-  siblingRooms?: Room[];
+  // siblingRooms prop removed
 }
 
 const getAvailabilityText = (availability: RoomAvailability): string => {
@@ -20,18 +20,16 @@ const getAvailabilityText = (availability: RoomAvailability): string => {
   }
   if (availability.available_from) {
     try {
-      // Ensure the date is parsed correctly, handling potential nulls or invalid formats
       const parsedDate = parseISO(availability.available_from);
       return `Desde: ${format(parsedDate, 'dd MMM', { locale: es })}`;
     } catch (e) {
-      // console.warn(`Invalid date format for availability_from: ${availability.available_from}`, e);
       return "Consultar disponibilidad";
     }
   }
   return "Consultar disponibilidad";
 };
 
-export default function RoomCard({ room, siblingRooms = [] }: RoomCardProps) {
+export default function RoomCard({ room }: RoomCardProps) {
   const placeholderImage = "https://placehold.co/600x400.png";
   const imageUrl = (room.photos && room.photos.length > 0 && room.photos[0].url_medium)
                    ? room.photos[0].url_medium
@@ -57,8 +55,8 @@ export default function RoomCard({ room, siblingRooms = [] }: RoomCardProps) {
           )}
         </CardHeader>
       </Link>
-      <CardContent className="p-4 flex-grow flex flex-col"> {/* Added flex flex-col */}
-        <div> {/* Wrapper for main room content to allow sibling section to push footer down */}
+      <CardContent className="p-4 flex-grow flex flex-col">
+        <div>
             <Link href={`/room/${room.id}`} className="block">
             <CardTitle className="text-lg font-semibold mb-2 hover:text-primary transition-colors line-clamp-2">{room.title || 'Título no disponible'}</CardTitle>
             </Link>
@@ -79,28 +77,9 @@ export default function RoomCard({ room, siblingRooms = [] }: RoomCardProps) {
             )}
             </div>
         </div>
-
-        {siblingRooms && siblingRooms.length > 0 && (
-          <div className="mt-4 pt-3 border-t border-border/50">
-            <h4 className="text-sm font-semibold text-muted-foreground mb-2 flex items-center">
-              <ListCollapse size={16} className="mr-2 text-accent" />
-              Otras habitaciones en este piso:
-            </h4>
-            <div className="space-y-2 max-h-32 overflow-y-auto pr-1"> {/* Scrollable area for sibling rooms */}
-              {siblingRooms.map(sibling => (
-                <Link key={sibling.id} href={`/room/${sibling.id}`} className="block p-2 rounded-md bg-muted/40 hover:bg-muted/70 transition-colors">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="font-medium text-foreground truncate pr-2">{sibling.title}</span>
-                    <span className="font-semibold text-primary whitespace-nowrap">{sibling.monthly_price}{sibling.currency_symbol}</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">{getAvailabilityText(sibling.availability)}</p>
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* Sibling rooms section removed from here */}
       </CardContent>
-      <CardFooter className="p-4 bg-muted/50 flex justify-between items-center mt-auto"> {/* mt-auto to push footer to bottom */}
+      <CardFooter className="p-4 bg-muted/50 flex justify-between items-center mt-auto">
         <p className="text-xl font-bold text-primary">
           {room.monthly_price}{room.currency_symbol}/mes
         </p>

@@ -37,10 +37,9 @@ export default function HomePage() {
   });
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Effect to update default city filter once allRooms are loaded
   useEffect(() => {
     if (allRooms.length > 0) {
-        const newDefaultCity = uniqueCities.includes('Madrid') ? 'Madrid' : (uniqueCities.length > 0 ? "" : ""); // Default to "" (All Cities) if Madrid not present
+        const newDefaultCity = uniqueCities.includes('Madrid') ? 'Madrid' : (uniqueCities.length > 0 ? "" : "");
         setFilters(prevFilters => ({
             ...prevFilters,
             city: newDefaultCity
@@ -140,22 +139,7 @@ export default function HomePage() {
     });
   }, [allRooms, filters]);
 
-  const roomsByFlat = useMemo(() => {
-    const grouped: { [key: string]: Room[] } = {};
-    allRooms.forEach(room => {
-      // A more robust flat identifier might be needed if addresses are not perfectly unique
-      // or if a 'flat_id' or 'property_code' is available from the API.
-      // For now, using address and city.
-      if (room.address_1 && room.city) {
-        const flatKey = `${room.address_1.trim().toLowerCase()}|${room.city.trim().toLowerCase()}`;
-        if (!grouped[flatKey]) {
-          grouped[flatKey] = [];
-        }
-        grouped[flatKey].push(room);
-      }
-    });
-    return grouped;
-  }, [allRooms]);
+  // Logic for roomsByFlat removed as it's no longer passed to RoomCard
 
   const paginatedRooms = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -195,7 +179,6 @@ export default function HomePage() {
         availableCities={uniqueCities}
       />
 
-      {/* Map Section - Single Column Layout */}
       <div className="h-[400px] w-full bg-card border border-border rounded-lg shadow-md p-1">
         {(isLoading && allRooms.length === 0) ? (
            <div key="map-loading-state" className="h-full w-full rounded-md bg-muted flex items-center justify-center text-muted-foreground">Cargando datos para el mapa...</div>
@@ -210,7 +193,6 @@ export default function HomePage() {
         )}
       </div>
       
-      {/* Room Listings Section */}
       {isLoading && allRooms.length === 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {Array.from({ length: ITEMS_PER_PAGE }).map((_, index) => (
@@ -225,11 +207,10 @@ export default function HomePage() {
       ) : paginatedRooms.length > 0 ? (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {paginatedRooms.map((room) => {
-               const flatKey = room.address_1 && room.city ? `${room.address_1.trim().toLowerCase()}|${room.city.trim().toLowerCase()}` : null;
-               const siblingRoomsInFlat = flatKey ? (roomsByFlat[flatKey] || []).filter(r => r.id !== room.id) : [];
-              return <RoomCard key={room.id} room={room} siblingRooms={siblingRoomsInFlat} />;
-            })}
+            {paginatedRooms.map((room) => (
+              // siblingRooms prop removed from RoomCard
+              <RoomCard key={room.id} room={room} />
+            ))}
           </div>
           {totalPages > 1 && (
               <PaginationControls
