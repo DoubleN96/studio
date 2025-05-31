@@ -19,14 +19,35 @@ export default function HomePage() {
   const [allRooms, setAllRooms] = useState<Room[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
+  const uniqueCities = useMemo(() => {
+    if (!allRooms || allRooms.length === 0) return [];
+    return [...new Set(allRooms.map(room => room.city).filter(Boolean) as string[])].sort();
+  }, [allRooms]);
+
+  const defaultCityValue = useMemo(() => {
+    return uniqueCities.includes('Madrid') ? 'Madrid' : '';
+  }, [uniqueCities]);
+
   const [filters, setFilters] = useState<Filters>({
-    city: '',
+    city: defaultCityValue,
     checkInDate: undefined,
     checkOutDate: undefined,
     maxPrice: '',
   });
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Effect to update default city filter once allRooms are loaded
+  useEffect(() => {
+    if (allRooms.length > 0) {
+        const newDefaultCity = uniqueCities.includes('Madrid') ? 'Madrid' : '';
+        setFilters(prevFilters => ({
+            ...prevFilters,
+            city: newDefaultCity
+        }));
+    }
+  }, [allRooms, uniqueCities]);
+
 
   const DynamicMap = dynamic(() => import('@/components/InteractiveMap'), {
     ssr: false,
@@ -153,7 +174,8 @@ export default function HomePage() {
       
       <RoomFilters
         onFilterChange={handleFilterChange}
-        initialFilters={filters} 
+        initialFilters={filters}
+        availableCities={uniqueCities}
       />
 
       {/* Map Section - Single Column Layout */}
@@ -210,3 +232,4 @@ export default function HomePage() {
     </div>
   );
 }
+

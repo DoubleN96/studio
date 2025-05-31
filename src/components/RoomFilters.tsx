@@ -1,12 +1,19 @@
 
 'use client';
 
-import { useState, type Dispatch, type SetStateAction } from 'react';
+import { useState, type Dispatch, type SetStateAction, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { CalendarIcon, Search, DollarSign, Filter } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { CalendarIcon, DollarSign, Filter, MapPin as MapPinIcon } from 'lucide-react';
 import { format, addDays, isBefore } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -20,50 +27,64 @@ export interface Filters {
 interface RoomFiltersProps {
   onFilterChange: (newFilters: Filters) => void;
   initialFilters: Filters;
+  availableCities: string[];
 }
 
-export default function RoomFilters({ onFilterChange, initialFilters }: RoomFiltersProps) {
+export default function RoomFilters({ onFilterChange, initialFilters, availableCities }: RoomFiltersProps) {
   const [city, setCity] = useState(initialFilters.city);
   const [checkInDate, setCheckInDate] = useState<Date | undefined>(initialFilters.checkInDate);
   const [checkOutDate, setCheckOutDate] = useState<Date | undefined>(initialFilters.checkOutDate);
   const [maxPrice, setMaxPrice] = useState(initialFilters.maxPrice);
+
+  useEffect(() => {
+    // Update local state if initialFilters.city changes (e.g. after parent finishes loading cities)
+    setCity(initialFilters.city);
+  }, [initialFilters.city]);
+
 
   const handleApplyFilters = () => {
     onFilterChange({ city, checkInDate, checkOutDate, maxPrice });
   };
 
   const handleClearFilters = () => {
-    setCity('');
+    setCity(initialFilters.city); // Reset city to the initial default (e.g., Madrid or "All")
     setCheckInDate(undefined);
     setCheckOutDate(undefined);
     setMaxPrice('');
-    onFilterChange({ city: '', checkInDate: undefined, checkOutDate: undefined, maxPrice: '' });
+    onFilterChange({ city: initialFilters.city, checkInDate: undefined, checkOutDate: undefined, maxPrice: '' });
   };
 
   const handleCheckInDateChange = (date: Date | undefined) => {
     setCheckInDate(date);
-    // If new check-in date is after current check-out date, clear check-out date
     if (date && checkOutDate && isBefore(checkOutDate, date)) {
       setCheckOutDate(undefined);
     }
+  };
+  
+  const handleCityChange = (value: string) => {
+    setCity(value);
   };
 
   return (
     <div className="p-6 mb-8 bg-card rounded-xl shadow-lg space-y-4 md:space-y-0 md:grid md:grid-cols-2 lg:grid-cols-5 md:gap-4 md:items-end">
       <div className="lg:col-span-1">
-        <label htmlFor="city" className="block text-sm font-medium text-foreground mb-1">Ciudad</label>
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-          <Input
-            id="city"
-            type="text"
-            placeholder="Ej. Madrid, Barcelona..."
-            value={city}
-            onChange={(e) => setCity(e.target.value)}
-            className="pl-10"
-            suppressHydrationWarning={true}
-          />
-        </div>
+        <label htmlFor="city-filter" className="block text-sm font-medium text-foreground mb-1">Ciudad</label>
+        <Select value={city} onValueChange={handleCityChange}>
+          <SelectTrigger className="w-full" id="city-filter">
+            <div className="flex items-center">
+              <MapPinIcon className="h-5 w-5 text-muted-foreground mr-2 flex-shrink-0" />
+              <SelectValue placeholder="Selecciona ciudad" />
+            </div>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">Todas las ciudades</SelectItem>
+            {availableCities.map((cityName) => (
+              <SelectItem key={cityName} value={cityName}>
+                {cityName}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="lg:col-span-1">
@@ -85,7 +106,7 @@ export default function RoomFilters({ onFilterChange, initialFilters }: RoomFilt
               onSelect={handleCheckInDateChange}
               initialFocus
               locale={es}
-              disabled={{ before: new Date(new Date().setDate(new Date().getDate() -1)) }} // Prevent selecting past dates
+              disabled={{ before: new Date(new Date().setDate(new Date().getDate() -1)) }} 
             />
           </PopoverContent>
         </Popover>
@@ -111,7 +132,7 @@ export default function RoomFilters({ onFilterChange, initialFilters }: RoomFilt
               onSelect={setCheckOutDate}
               initialFocus
               locale={es}
-              disabled={ (date) => checkInDate ? isBefore(date, addDays(checkInDate, 0)) : true } // checkOut must be same day or after checkIn
+              disabled={ (date) => checkInDate ? isBefore(date, addDays(checkInDate, 0)) : true } 
             />
           </PopoverContent>
         </Popover>
@@ -144,3 +165,4 @@ export default function RoomFilters({ onFilterChange, initialFilters }: RoomFilt
     </div>
   );
 }
+
