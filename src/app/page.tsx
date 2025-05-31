@@ -2,6 +2,7 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import type { Room } from '@/lib/types';
 import { fetchRooms } from '@/lib/api';
 import RoomCard from '@/components/RoomCard';
@@ -9,10 +10,12 @@ import RoomFilters, { type Filters } from '@/components/RoomFilters';
 import PaginationControls from '@/components/PaginationControls';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Info } from "lucide-react";
+import { Info, MapPin } from "lucide-react";
 import { parseISO, isBefore, isAfter, isEqual, startOfDay, endOfDay } from 'date-fns';
 
-const ITEMS_PER_PAGE = 12;
+// NOTE: 'leaflet-defaulticon-compatibility' is now imported in InteractiveMap.tsx
+
+const ITEMS_PER_PAGE = 9; // Adjusted for potentially less space in the left column
 
 export default function HomePage() {
   const [allRooms, setAllRooms] = useState<Room[]>([]);
@@ -26,6 +29,12 @@ export default function HomePage() {
     maxPrice: '',
   });
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Dynamically import the map component to ensure it's client-side only
+  const DynamicMap = dynamic(() => import('@/components/InteractiveMap'), {
+    ssr: false,
+    loading: () => <div className="h-full w-full rounded-md bg-muted flex items-center justify-center text-muted-foreground">Cargando Mapa...</div>,
+  });
 
   useEffect(() => {
     async function loadRooms() {
@@ -59,7 +68,7 @@ export default function HomePage() {
           roomIsOpenAtCheckIn = true;
         } else if (room.availability.available_from) {
           const availableFrom = startOfDay(parseISO(room.availability.available_from));
-          if (!isBefore(checkIn, availableFrom)) { // checkIn >= availableFrom
+          if (!isBefore(checkIn, availableFrom)) { 
             roomIsOpenAtCheckIn = true;
           }
         }
@@ -67,10 +76,9 @@ export default function HomePage() {
         if (!roomIsOpenAtCheckIn) {
           availabilityMatch = false;
         } else {
-          // If checkOutDate is also provided, check the whole interval
           if (filters.checkOutDate) {
             const checkOut = endOfDay(filters.checkOutDate);
-            if (isBefore(checkOut, checkIn)) { // Invalid range (checkout before checkin)
+            if (isBefore(checkOut, checkIn)) { 
                 availabilityMatch = false;
             } else {
                 let periodIsBlockedByUnavailableRange = false;
@@ -80,7 +88,6 @@ export default function HomePage() {
                     .map(rangeStr => [startOfDay(parseISO(rangeStr[0])), endOfDay(parseISO(rangeStr[1]))] as [Date, Date]);
 
                   for (const [unavailableStart, unavailableEnd] of unavailableRanges) {
-                    // Check for overlap: (filterStart < unavailableEnd) and (filterEnd > unavailableStart)
                     if (isBefore(checkIn, unavailableEnd) && isAfter(checkOut, unavailableStart)) {
                       periodIsBlockedByUnavailableRange = true;
                       break;
@@ -91,7 +98,7 @@ export default function HomePage() {
                   availabilityMatch = false;
                 }
             }
-          } else { // Only checkInDate is provided, check if checkIn date itself is within an unavailable_dates_range
+          } else { 
               let checkInIsBlockedByUnavailableRange = false;
               if (room.availability.unavailable_dates_range) {
                   const unavailableRanges = Object.values(room.availability.unavailable_dates_range)
@@ -99,7 +106,6 @@ export default function HomePage() {
                     .map(rangeStr => [startOfDay(parseISO(rangeStr[0])), endOfDay(parseISO(rangeStr[1]))] as [Date, Date]);
                   
                   for (const [unavailableStart, unavailableEnd] of unavailableRanges) {
-                      // Check if checkIn is within [unavailableStart, unavailableEnd]
                       if (!isBefore(checkIn, unavailableStart) && !isAfter(checkIn, unavailableEnd)) { 
                           checkInIsBlockedByUnavailableRange = true;
                           break;
@@ -112,9 +118,6 @@ export default function HomePage() {
           }
         }
       }
-      // If only filters.checkOutDate is set, without a checkInDate, it's an incomplete filter.
-      // For now, we require checkInDate for date-based availability checks.
-
       return cityMatch && priceMatch && availabilityMatch;
     });
   }, [allRooms, filters]);
@@ -129,7 +132,7 @@ export default function HomePage() {
 
   const handleFilterChange = (newFilters: Filters) => {
     setFilters(newFilters);
-    setCurrentPage(1); // Reset to first page on filter change
+    setCurrentPage(1); 
   };
 
   const handlePageChange = (page: number) => {
@@ -148,53 +151,72 @@ export default function HomePage() {
   }
 
   return (
-    <div>
+    <div> {/* Main container for the whole page */}
       <h1 className="text-3xl font-bold mb-8 text-center text-primary">Encuentra tu Espacio Ideal</h1>
-      <RoomFilters 
-        onFilterChange={handleFilterChange} 
-        initialFilters={{
-          city: '',
-          checkInDate: undefined,
-          checkOutDate: undefined,
-          maxPrice: '',
-        }} 
-      />
+      
+      <div className="md:flex md:gap-8"> {/* This is the flex container for the two-column layout */}
+        
+        {/* Left Column: Filters, Rooms Grid, Pagination */}
+        <div className="md:w-3/5 lg:w-2/3 space-y-6">
+          <RoomFilters
+            onFilterChange={handleFilterChange}
+            initialFilters={filters} 
+          />
 
-      {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {Array.from({ length: ITEMS_PER_PAGE }).map((_, index) => (
-            <div key={index} className="space-y-3">
-              <Skeleton className="h-[200px] w-full rounded-xl" />
-              <Skeleton className="h-6 w-3/4" />
-              <Skeleton className="h-4 w-1/2" />
-              <Skeleton className="h-4 w-1/3" />
+          {isLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+              {Array.from({ length: ITEMS_PER_PAGE }).map((_, index) => (
+                <div key={index} className="space-y-3">
+                  <Skeleton className="h-[200px] w-full rounded-xl" />
+                  <Skeleton className="h-6 w-3/4" />
+                  <Skeleton className="h-4 w-1/2" />
+                  <Skeleton className="h-4 w-1/3" />
+                </div>
+              ))}
             </div>
-          ))}
+          ) : paginatedRooms.length > 0 ? (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+                {paginatedRooms.map((room) => (
+                  <RoomCard key={room.id} room={room} />
+                ))}
+              </div>
+              {totalPages > 1 && (
+                 <PaginationControls
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={handlePageChange}
+                />
+               )}
+            </>
+          ) : (
+            <Alert className="max-w-md mx-auto">
+                <Info className="h-4 w-4" />
+                <AlertTitle>No se encontraron resultados</AlertTitle>
+                <AlertDescription>
+                Intenta ajustar tus filtros o revisa más tarde. Continuamente añadimos nuevas propiedades.
+                </AlertDescription>
+            </Alert>
+          )}
         </div>
-      ) : paginatedRooms.length > 0 ? (
-        <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {paginatedRooms.map((room) => (
-              <RoomCard key={room.id} room={room} />
-            ))}
+
+        {/* Right Column: Map - Added borders and fixed height for debugging */}
+        <div className="hidden md:block md:w-2/5 lg:w-1/3 border-4 border-red-500 p-1"> {/* Debug: Column border */}
+          <div className="md:sticky md:top-24 h-[500px] bg-card border-2 border-blue-500 rounded-lg shadow-md p-1"> {/* Debug: Map container style */}
+            {(isLoading && allRooms.length === 0) ? (
+               <div className="h-full w-full rounded-md bg-muted flex items-center justify-center text-muted-foreground">Cargando esqueleto del mapa...</div>
+            ) : (!isLoading && allRooms.length === 0 && !error) ? (
+              <Alert className="h-full flex flex-col items-center justify-center text-center">
+                <MapPin className="h-8 w-8 mb-2 text-muted-foreground" />
+                <AlertTitle>Mapa no disponible</AlertTitle>
+                <AlertDescription>No hay propiedades para mostrar en el mapa en este momento.</AlertDescription>
+              </Alert>
+            ) : (
+              <DynamicMap rooms={filteredRooms.length > 0 ? filteredRooms : allRooms} />
+            )}
           </div>
-          {totalPages > 1 && (
-             <PaginationControls
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={handlePageChange}
-            />
-           )}
-        </>
-      ) : (
-        <Alert className="max-w-2xl mx-auto">
-            <Info className="h-4 w-4" />
-            <AlertTitle>No se encontraron resultados</AlertTitle>
-            <AlertDescription>
-            Intenta ajustar tus filtros o revisa más tarde. Continuamente añadimos nuevas propiedades.
-            </AlertDescription>
-        </Alert>
-      )}
+        </div>
+      </div>
     </div>
   );
 }
