@@ -156,8 +156,8 @@ export default function HomePage() {
         initialFilters={filters} 
       />
 
-      {/* Map Section */}
-      <div className="h-[500px] w-full bg-card border border-border rounded-lg shadow-md p-1">
+      {/* Map Section - Single Column Layout */}
+      <div className="h-[400px] w-full bg-card border border-border rounded-lg shadow-md p-1">
         {(isLoading && allRooms.length === 0) ? (
            <div key="map-loading-state" className="h-full w-full rounded-md bg-muted flex items-center justify-center text-muted-foreground">Cargando datos para el mapa...</div>
         ) : (!isLoading && allRooms.length === 0 && !error) ? (
@@ -172,7 +172,7 @@ export default function HomePage() {
       </div>
       
       {/* Room Listings Section */}
-      {isLoading && allRooms.length === 0 ? ( // Skeleton only during initial full load if no rooms were fetched yet.
+      {isLoading && allRooms.length === 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {Array.from({ length: ITEMS_PER_PAGE }).map((_, index) => (
             <div key={index} className="space-y-3">
@@ -198,7 +198,7 @@ export default function HomePage() {
             />
             )}
         </>
-      ) : !error ? ( // Show "No results" if not loading, no paginated rooms, and no API error
+      ) : !error ? ( 
         <Alert className="max-w-md mx-auto">
             <Info className="h-4 w-4" />
             <AlertTitle>No se encontraron resultados</AlertTitle>
