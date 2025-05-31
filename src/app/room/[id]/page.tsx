@@ -11,7 +11,10 @@ import AvailabilityDisplay from '@/components/AvailabilityDisplay';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { MapPin, Home, Maximize, BedDouble, Bath, CheckCircle2, Edit3, Info, AlertCircle, Tag, Youtube, ListCollapse, CalendarDays, UsersRound, Briefcase, GraduationCap, GlobeIcon, UserIcon } from 'lucide-react';
+import { 
+  MapPin, Home, Maximize, BedDouble, Bath, CheckCircle2, Edit3, Info, AlertCircle, Tag, Youtube, ListCollapse, CalendarDays, UsersRound, Briefcase, GraduationCap, Globe, UserIcon,
+  Tv2, Armchair, CookingPot, AppWindow, GalleryVerticalEnd, Users, AirVent, Wind, ThermometerSun, ArrowBigUpDash, ParkingCircle, Refrigerator, LampDesk, Dog, Shirt, Fan as FanIcon, Wardrobe as WardrobeIcon
+} from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
@@ -53,7 +56,7 @@ const getSiblingAvailabilityText = (availability: RoomAvailability): string => {
 
 interface MockFlatmate {
   id: number;
-  name: string;
+  name: string; // Only first name
   age: number;
   gender: string;
   nationality: string;
@@ -63,9 +66,9 @@ interface MockFlatmate {
 }
 
 const mockFlatmatesData: MockFlatmate[] = [
-  { id: 1, name: "Ana García", age: 24, gender: "Femenino", nationality: "Española", status: "Estudiante de Máster", photoUrl: "https://placehold.co/100x100.png", photoHint: "woman portrait" },
-  { id: 2, name: "Carlos Pérez", age: 27, gender: "Masculino", nationality: "Mexicano", status: "Desarrollador Web", photoUrl: "https://placehold.co/100x100.png", photoHint: "man portrait" },
-  { id: 3, name: "Sophie Müller", age: 22, gender: "Femenino", nationality: "Alemana", status: "Erasmus - Marketing", photoUrl: "https://placehold.co/100x100.png", photoHint: "person face" },
+  { id: 1, name: "Ana", age: 24, gender: "Femenino", nationality: "Española", status: "Estudiante de Máster", photoUrl: "https://placehold.co/100x100.png", photoHint: "woman portrait" },
+  { id: 2, name: "Carlos", age: 27, gender: "Masculino", nationality: "Mexicano", status: "Desarrollador Web", photoUrl: "https://placehold.co/100x100.png", photoHint: "man portrait" },
+  { id: 3, name: "Sophie", age: 22, gender: "Femenino", nationality: "Alemana", status: "Erasmus - Marketing", photoUrl: "https://placehold.co/100x100.png", photoHint: "person face" },
 ];
 
 
@@ -212,13 +215,43 @@ export default function RoomPage() {
     );
   }
 
-  const AmenityItem = ({ amenity }: { amenity: { name: string, icon_name?: string | null } }) => (
-    <li className="flex items-center text-sm bg-muted p-2 rounded-md">
-      {amenity.icon_name === 'wifi' && <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2 text-accent"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>}
-      {amenity.icon_name !== 'wifi' && <CheckCircle2 className="mr-2 h-4 w-4 text-accent" />}
-      {amenity.name}
-    </li>
-  );
+  const AmenityItem = ({ amenity }: { amenity: { name: string, icon_name?: string | null } }) => {
+    const nameLower = amenity.name.toLowerCase();
+    let IconComponent: React.ElementType = CheckCircle2;
+
+    if (nameLower.includes("wifi")) {
+      return (
+        <li className="flex items-center text-sm bg-muted p-2 rounded-md">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2 text-accent"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+          {amenity.name}
+        </li>
+      );
+    }
+    if (nameLower.includes("tv") || nameLower.includes("television")) IconComponent = Tv2;
+    else if (nameLower.includes("lavadora") || nameLower.includes("washing machine")) IconComponent = Shirt;
+    else if (nameLower.includes("amueblado") || nameLower.includes("furnished")) IconComponent = Armchair;
+    else if (nameLower.includes("cocina") || nameLower.includes("kitchen")) IconComponent = CookingPot;
+    else if (nameLower.includes("ventana") || nameLower.includes("window")) IconComponent = AppWindow;
+    else if (nameLower.includes("balcón") || nameLower.includes("balcony")) IconComponent = GalleryVerticalEnd;
+    else if (nameLower.includes("visitas") || nameLower.includes("visits")) IconComponent = Users;
+    else if (nameLower.includes("aire acondicionado") || nameLower.includes("air conditioner") || nameLower.includes("a/c")) IconComponent = AirVent;
+    else if (nameLower.includes("ventilador") || nameLower.includes("fan")) IconComponent = FanIcon;
+    else if (nameLower.includes("armario") || nameLower.includes("wardrobe")) IconComponent = WardrobeIcon;
+    else if (nameLower.includes("calefacción") || nameLower.includes("heating")) IconComponent = ThermometerSun;
+    else if (nameLower.includes("ascensor") || nameLower.includes("elevator") || nameLower.includes("lift")) IconComponent = ArrowBigUpDash;
+    else if (nameLower.includes("parking") || nameLower.includes("garage")) IconComponent = ParkingCircle;
+    else if (nameLower.includes("secadora") || nameLower.includes("dryer")) IconComponent = Wind;
+    else if (nameLower.includes("nevera") || nameLower.includes("frigorífico") || nameLower.includes("refrigerator")) IconComponent = Refrigerator;
+    else if (nameLower.includes("escritorio") || nameLower.includes("desk")) IconComponent = LampDesk;
+    else if (nameLower.includes("mascotas") || nameLower.includes("pets")) IconComponent = Dog;
+    
+    return (
+      <li className="flex items-center text-sm bg-muted p-2 rounded-md">
+        <IconComponent className="mr-2 h-4 w-4 text-accent" />
+        {amenity.name}
+      </li>
+    );
+  };
 
   return (
     <div className="max-w-6xl mx-auto" suppressHydrationWarning={true}>
@@ -331,11 +364,11 @@ export default function RoomPage() {
                   const siblingImageUrl = (sibling.photos && sibling.photos.length > 0 && sibling.photos[0].url_thumbnail)
                                        ? sibling.photos[0].url_thumbnail
                                        : "https://placehold.co/80x80.png";
-                  const siblingImageHint = (sibling.photos && sibling.photos.length > 0 && sibling.title) ? sibling.title.substring(0,15) : "room exterior";
+                  const siblingImageHint = (sibling.photos && sibling.photos.length > 0 && sibling.title) ? sibling.title.substring(0,15) : "room thumbnail";
                   return (
                     <Link key={sibling.id} href={`/room/${sibling.id}`} className="block p-3 rounded-md bg-muted/50 hover:bg-muted transition-colors border">
                       <div className="flex items-start gap-3">
-                        <div className="relative w-16 h-16 rounded-md overflow-hidden flex-shrink-0">
+                        <div className="relative w-20 h-20 rounded-md overflow-hidden flex-shrink-0">
                            <Image
                             src={siblingImageUrl}
                             alt={`Foto de ${sibling.title}`}
@@ -384,7 +417,7 @@ export default function RoomPage() {
                        <UserIcon size={14} className="mr-1.5 text-accent" /> {flatmate.gender}
                     </div>
                     <div className="flex items-center text-muted-foreground mt-0.5">
-                       <GlobeIcon size={14} className="mr-1.5 text-accent" /> {flatmate.nationality}
+                       <Globe size={14} className="mr-1.5 text-accent" /> {flatmate.nationality}
                     </div>
                     <div className="flex items-center text-muted-foreground mt-0.5">
                       {flatmate.status.toLowerCase().includes('estudiante') || flatmate.status.toLowerCase().includes('erasmus') ? <GraduationCap size={14} className="mr-1.5 text-accent" /> : <Briefcase size={14} className="mr-1.5 text-accent" />}
