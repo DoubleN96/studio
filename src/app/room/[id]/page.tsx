@@ -13,7 +13,7 @@ import { Separator } from '@/components/ui/separator';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { 
   MapPin, Home, Maximize, BedDouble, Bath, CheckCircle2, Edit3, Info, AlertCircle, Tag, Youtube, ListCollapse, CalendarDays, UsersRound, Briefcase, GraduationCap, Globe, UserIcon,
-  Tv2, Armchair, CookingPot, AppWindow, GalleryVerticalEnd, Users, AirVent, Wind, ThermometerSun, ArrowBigUpDash, ParkingCircle, Refrigerator, LampDesk, Dog, Shirt, Fan as FanIcon, Wardrobe as WardrobeIcon
+  Tv2, Armchair, CookingPot, AppWindow, GalleryVerticalEnd, Users, AirVent, Wind, ThermometerSun, ArrowBigUpDash, ParkingCircle, Refrigerator, LampDesk, Dog, Shirt, Fan as FanIcon
 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -236,7 +236,7 @@ export default function RoomPage() {
     else if (nameLower.includes("visitas") || nameLower.includes("visits")) IconComponent = Users;
     else if (nameLower.includes("aire acondicionado") || nameLower.includes("air conditioner") || nameLower.includes("a/c")) IconComponent = AirVent;
     else if (nameLower.includes("ventilador") || nameLower.includes("fan")) IconComponent = FanIcon;
-    else if (nameLower.includes("armario") || nameLower.includes("wardrobe")) IconComponent = WardrobeIcon;
+    else if (nameLower.includes("armario") || nameLower.includes("wardrobe")) IconComponent = CheckCircle2; // Fallback for Wardrobe
     else if (nameLower.includes("calefacción") || nameLower.includes("heating")) IconComponent = ThermometerSun;
     else if (nameLower.includes("ascensor") || nameLower.includes("elevator") || nameLower.includes("lift")) IconComponent = ArrowBigUpDash;
     else if (nameLower.includes("parking") || nameLower.includes("garage")) IconComponent = ParkingCircle;
@@ -447,5 +447,4 @@ export default function RoomPage() {
     </div>
   );
 }
-
         
