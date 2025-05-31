@@ -1,8 +1,10 @@
 
 'use client';
 
+import { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
-import type { LatLngExpression } from 'leaflet';
+import type L from 'leaflet'; // Import L namespace for types
+import type { LatLngExpression, Map as LeafletMapInstance } from 'leaflet'; // Import specific types
 import type { Room } from '@/lib/types';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -27,7 +29,20 @@ export default function InteractiveMap({
   defaultCenter = [40.416775, -3.703790], // Default to Madrid
   defaultZoom = 6,
 }: InteractiveMapProps) {
-  
+  const [mapInstance, setMapInstance] = useState<LeafletMapInstance | null>(null);
+
+  // Effect for cleaning up the map instance
+  useEffect(() => {
+    // Cleanup function to remove the map instance when the component unmounts
+    // or when the mapInstance state itself changes (though less likely for mapInstance itself to change once set).
+    return () => {
+      if (mapInstance) {
+        mapInstance.remove();
+        // setMapInstance(null); // Optional: reset state if needed, though component is unmounting
+      }
+    };
+  }, [mapInstance]); // Dependency array includes mapInstance
+
   const validRooms = rooms.filter(room => room.lat != null && room.lng != null);
 
   if (validRooms.length === 0) {
@@ -72,7 +87,6 @@ export default function InteractiveMap({
     }
   }
 
-
   return (
     <MapContainer 
       center={mapCenter} 
@@ -81,6 +95,7 @@ export default function InteractiveMap({
       style={{ height: '100%', width: '100%' }} 
       className="rounded-lg shadow-lg"
       placeholder={<div className="h-full w-full flex items-center justify-center bg-muted text-muted-foreground"><p>Cargando mapa...</p></div>}
+      whenCreated={setMapInstance} // Set the map instance once it's created
     >
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -142,4 +157,3 @@ export default function InteractiveMap({
     </MapContainer>
   );
 }
-
