@@ -1,10 +1,11 @@
 
 'use client';
 
-import { useState, useEffect, useRef } from 'react'; // Added useRef
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
-import type L from 'leaflet'; // Import L namespace for types
-import type { LatLngExpression, Map as LeafletMapInstance } from 'leaflet'; // Import specific types
+// Removed useState, useEffect, useRef as we are removing manual instance management
+// Kept L for type, but LeafletMapInstance is not directly used in ref anymore
+import type L from 'leaflet'; 
+import type { LatLngExpression } from 'leaflet'; 
 import type { Room } from '@/lib/types';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -29,18 +30,7 @@ export default function InteractiveMap({
   defaultCenter = [40.416775, -3.703790], // Default to Madrid
   defaultZoom = 6,
 }: InteractiveMapProps) {
-  const mapInstanceRef = useRef<LeafletMapInstance | null>(null);
-
-  // Effect for cleaning up the map instance when the component unmounts
-  useEffect(() => {
-    // This cleanup function will be called when the InteractiveMap component unmounts.
-    return () => {
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
-        mapInstanceRef.current = null; // Clear the ref
-      }
-    };
-  }, []); // Empty dependency array ensures this runs only on mount and unmount
+  // Removed mapInstanceRef and useEffect for cleanup
 
   const validRooms = rooms.filter(room => room.lat != null && room.lng != null);
 
@@ -73,22 +63,19 @@ export default function InteractiveMap({
     const avgLng = longitudes.reduce((a, b) => a + b, 0) / longitudes.length;
     mapCenter = [avgLat, avgLng];
     
-    if (Object.keys(groupedRooms).length === 1) { // Only one distinct location
-        mapZoom = 13; // Zoom in more
+    if (Object.keys(groupedRooms).length === 1) { 
+        mapZoom = 13; 
     } else if (validRooms.length > 1) {
-        // Basic zoom adjustment if multiple distinct locations
         const latSpread = Math.max(...latitudes) - Math.min(...latitudes);
         const lngSpread = Math.max(...longitudes) - Math.min(...longitudes);
-        if (latSpread < 0.1 && lngSpread < 0.1) mapZoom = 12; // Closer if tightly grouped
+        if (latSpread < 0.1 && lngSpread < 0.1) mapZoom = 12; 
         else if (latSpread < 0.5 && lngSpread < 0.5) mapZoom = 10;
         else if (latSpread < 2 && lngSpread < 2) mapZoom = 8;
-        else mapZoom = 6; // Default for wider spread
+        else mapZoom = 6; 
     }
   }
 
-  const handleWhenCreated = (map: LeafletMapInstance) => {
-    mapInstanceRef.current = map;
-  };
+  // Removed handleWhenCreated function
 
   return (
     <MapContainer 
@@ -98,7 +85,7 @@ export default function InteractiveMap({
       style={{ height: '100%', width: '100%' }} 
       className="rounded-lg shadow-lg"
       placeholder={<div className="h-full w-full flex items-center justify-center bg-muted text-muted-foreground"><p>Cargando mapa...</p></div>}
-      whenCreated={handleWhenCreated} // Assign the map instance to the ref
+      // Removed whenCreated prop
     >
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -110,7 +97,7 @@ export default function InteractiveMap({
         }
         const position: LatLngExpression = [roomsInFlat[0].lat, roomsInFlat[0].lng];
         
-        const representativeRoom = roomsInFlat[0]; // Use first room for general flat info
+        const representativeRoom = roomsInFlat[0];
 
         return (
           <Marker key={coordKey} position={position}>
