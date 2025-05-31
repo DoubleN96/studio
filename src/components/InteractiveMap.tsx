@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react'; // Added useRef
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import type L from 'leaflet'; // Import L namespace for types
 import type { LatLngExpression, Map as LeafletMapInstance } from 'leaflet'; // Import specific types
@@ -29,19 +29,18 @@ export default function InteractiveMap({
   defaultCenter = [40.416775, -3.703790], // Default to Madrid
   defaultZoom = 6,
 }: InteractiveMapProps) {
-  const [mapInstance, setMapInstance] = useState<LeafletMapInstance | null>(null);
+  const mapInstanceRef = useRef<LeafletMapInstance | null>(null);
 
-  // Effect for cleaning up the map instance
+  // Effect for cleaning up the map instance when the component unmounts
   useEffect(() => {
-    // Cleanup function to remove the map instance when the component unmounts
-    // or when the mapInstance state itself changes (though less likely for mapInstance itself to change once set).
+    // This cleanup function will be called when the InteractiveMap component unmounts.
     return () => {
-      if (mapInstance) {
-        mapInstance.remove();
-        // setMapInstance(null); // Optional: reset state if needed, though component is unmounting
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null; // Clear the ref
       }
     };
-  }, [mapInstance]); // Dependency array includes mapInstance
+  }, []); // Empty dependency array ensures this runs only on mount and unmount
 
   const validRooms = rooms.filter(room => room.lat != null && room.lng != null);
 
@@ -87,6 +86,10 @@ export default function InteractiveMap({
     }
   }
 
+  const handleWhenCreated = (map: LeafletMapInstance) => {
+    mapInstanceRef.current = map;
+  };
+
   return (
     <MapContainer 
       center={mapCenter} 
@@ -95,7 +98,7 @@ export default function InteractiveMap({
       style={{ height: '100%', width: '100%' }} 
       className="rounded-lg shadow-lg"
       placeholder={<div className="h-full w-full flex items-center justify-center bg-muted text-muted-foreground"><p>Cargando mapa...</p></div>}
-      whenCreated={setMapInstance} // Set the map instance once it's created
+      whenCreated={handleWhenCreated} // Assign the map instance to the ref
     >
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
