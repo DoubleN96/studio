@@ -3,19 +3,21 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import { fetchRoomById, fetchRooms } from '@/lib/api'; // Added fetchRooms
+import { fetchRoomById, fetchRooms } from '@/lib/api';
 import type { Room, RoomAvailability } from '@/lib/types';
 import ImageCarousel from '@/components/ImageCarousel';
 import ReservationSidebar from '@/components/ReservationSidebar';
 import AvailabilityDisplay from '@/components/AvailabilityDisplay';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'; // Added Card components
-import { MapPin, Home, Maximize, BedDouble, Bath, CheckCircle2, Edit3, Info, AlertCircle, Tag, Youtube, ListCollapse, CalendarDays } from 'lucide-react'; // Added ListCollapse, CalendarDays
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { MapPin, Home, Maximize, BedDouble, Bath, CheckCircle2, Edit3, Info, AlertCircle, Tag, Youtube, ListCollapse, CalendarDays, UsersRound, Briefcase, GraduationCap, GlobeIcon, UserIcon } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
-import { parseISO, isBefore, startOfDay, format } from 'date-fns'; // Added format
-import { es } from 'date-fns/locale'; // Added es locale
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { parseISO, isBefore, startOfDay, format } from 'date-fns';
+import { es } from 'date-fns/locale';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const CardSkeleton = () => (
@@ -49,11 +51,29 @@ const getSiblingAvailabilityText = (availability: RoomAvailability): string => {
   return "Consultar disponibilidad";
 };
 
+interface MockFlatmate {
+  id: number;
+  name: string;
+  age: number;
+  gender: string;
+  nationality: string;
+  status: string; // 'Estudiante' o 'Trabajador'
+  photoUrl: string;
+  photoHint: string;
+}
+
+const mockFlatmatesData: MockFlatmate[] = [
+  { id: 1, name: "Ana García", age: 24, gender: "Femenino", nationality: "Española", status: "Estudiante de Máster", photoUrl: "https://placehold.co/100x100.png", photoHint: "woman portrait" },
+  { id: 2, name: "Carlos Pérez", age: 27, gender: "Masculino", nationality: "Mexicano", status: "Desarrollador Web", photoUrl: "https://placehold.co/100x100.png", photoHint: "man portrait" },
+  { id: 3, name: "Sophie Müller", age: 22, gender: "Femenino", nationality: "Alemana", status: "Erasmus - Marketing", photoUrl: "https://placehold.co/100x100.png", photoHint: "person face" },
+];
+
+
 export default function RoomPage() {
-  const routeParams = useParams<{ id: string }>(); 
-  const roomId = Number(routeParams.id); 
+  const routeParams = useParams<{ id: string }>();
+  const roomId = Number(routeParams.id);
   const [room, setRoom] = useState<Room | null>(null);
-  const [siblingRooms, setSiblingRooms] = useState<Room[]>([]); // New state for sibling rooms
+  const [siblingRooms, setSiblingRooms] = useState<Room[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -87,7 +107,6 @@ export default function RoomPage() {
             setSelectedCheckInDate(initialDateCandidate);
           }
 
-          // Fetch all rooms to find siblings
           const allRoomsData = await fetchRooms();
           if (allRoomsData) {
             const siblings = allRoomsData.filter(
@@ -115,7 +134,7 @@ export default function RoomPage() {
   const handleCheckInDateSelect = (date: Date | undefined) => {
     setSelectedCheckInDate(date);
     if (date && selectedCheckOutDate && isBefore(selectedCheckOutDate, date)) {
-      setSelectedCheckOutDate(undefined); 
+      setSelectedCheckOutDate(undefined);
     }
   };
 
@@ -156,7 +175,8 @@ export default function RoomPage() {
             <Skeleton className="aspect-video w-full rounded-lg" />
             <CardSkeleton />
             <CardSkeleton />
-            <Skeleton className="h-40 w-full rounded-lg" /> {/* Skeleton for sibling rooms */}
+            <Skeleton className="h-40 w-full rounded-lg" />
+            <Skeleton className="h-60 w-full rounded-lg" /> {/* Skeleton for flatmates */}
           </div>
           <div className="md:w-1/3 mt-8 md:mt-0">
             <Skeleton className="h-96 w-full rounded-lg sticky top-24" />
@@ -299,7 +319,6 @@ export default function RoomPage() {
             </div>
           )}
 
-          {/* Section for Sibling Rooms */}
           {siblingRooms.length > 0 && (
             <Card className="shadow-lg rounded-lg mt-6">
               <CardHeader>
@@ -308,33 +327,77 @@ export default function RoomPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {siblingRooms.map((sibling) => (
-                  <Link key={sibling.id} href={`/room/${sibling.id}`} className="block p-3 rounded-md bg-muted/50 hover:bg-muted transition-colors border">
-                    <div className="flex justify-between items-center">
-                      <h3 className="font-medium text-foreground truncate pr-2">{sibling.title}</h3>
-                      <p className="font-semibold text-primary whitespace-nowrap">
-                        {sibling.monthly_price.toLocaleString('es-ES', { style: 'currency', currency: sibling.currency_code || 'EUR' })}
-                      </p>
-                    </div>
-                    <div className="flex items-center text-xs text-muted-foreground mt-1">
-                      <CalendarDays size={14} className="mr-1.5 text-accent" />
-                      <span>{getSiblingAvailabilityText(sibling.availability)}</span>
-                    </div>
-                  </Link>
-                ))}
+                {siblingRooms.map((sibling) => {
+                  const siblingImageUrl = (sibling.photos && sibling.photos.length > 0 && sibling.photos[0].url_thumbnail)
+                                       ? sibling.photos[0].url_thumbnail
+                                       : "https://placehold.co/80x80.png";
+                  const siblingImageHint = (sibling.photos && sibling.photos.length > 0 && sibling.title) ? sibling.title.substring(0,15) : "room exterior";
+                  return (
+                    <Link key={sibling.id} href={`/room/${sibling.id}`} className="block p-3 rounded-md bg-muted/50 hover:bg-muted transition-colors border">
+                      <div className="flex items-start gap-3">
+                        <div className="relative w-16 h-16 rounded-md overflow-hidden flex-shrink-0">
+                           <Image
+                            src={siblingImageUrl}
+                            alt={`Foto de ${sibling.title}`}
+                            layout="fill"
+                            objectFit="cover"
+                            data-ai-hint={siblingImageHint}
+                          />
+                        </div>
+                        <div className="flex-grow">
+                          <h3 className="font-medium text-foreground truncate pr-2">{sibling.title}</h3>
+                          <p className="font-semibold text-primary text-sm">
+                            {sibling.monthly_price.toLocaleString('es-ES', { style: 'currency', currency: sibling.currency_code || 'EUR' })}
+                          </p>
+                          <div className="flex items-center text-xs text-muted-foreground mt-1">
+                            <CalendarDays size={14} className="mr-1.5 text-accent" />
+                            <span>{getSiblingAvailabilityText(sibling.availability)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })}
               </CardContent>
             </Card>
           )}
-
-          {/* Placeholder for "Compañeros de piso" section - NOT IMPLEMENTED DUE TO DATA LIMITATIONS */}
-          {/* 
+          
           <Card className="shadow-lg rounded-lg mt-6">
-            <CardHeader><CardTitle className="text-xl font-semibold text-primary flex items-center">Compañeros de Piso Actuales</CardTitle></CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">Esta información no está disponible actualmente.</p>
+            <CardHeader>
+              <CardTitle className="text-xl font-semibold text-primary flex items-center">
+                <UsersRound className="mr-2 h-6 w-6" /> Compañeros de Piso Actuales (Ejemplo)
+              </CardTitle>
+              <CardDescription>
+                Esta es una simulación de los perfiles de compañeros. Los datos reales no están disponibles.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {mockFlatmatesData.map((flatmate) => (
+                <div key={flatmate.id} className="flex items-start gap-4 p-3 bg-muted/30 rounded-lg border">
+                  <Avatar className="h-16 w-16 border-2 border-primary/50">
+                    <AvatarImage src={flatmate.photoUrl} alt={flatmate.name} data-ai-hint={flatmate.photoHint}/>
+                    <AvatarFallback>{flatmate.name.substring(0,1)}</AvatarFallback>
+                  </Avatar>
+                  <div className="text-sm">
+                    <h4 className="font-semibold text-foreground">{flatmate.name}, {flatmate.age} años</h4>
+                    <div className="flex items-center text-muted-foreground mt-0.5">
+                       <UserIcon size={14} className="mr-1.5 text-accent" /> {flatmate.gender}
+                    </div>
+                    <div className="flex items-center text-muted-foreground mt-0.5">
+                       <GlobeIcon size={14} className="mr-1.5 text-accent" /> {flatmate.nationality}
+                    </div>
+                    <div className="flex items-center text-muted-foreground mt-0.5">
+                      {flatmate.status.toLowerCase().includes('estudiante') || flatmate.status.toLowerCase().includes('erasmus') ? <GraduationCap size={14} className="mr-1.5 text-accent" /> : <Briefcase size={14} className="mr-1.5 text-accent" />}
+                       {flatmate.status}
+                    </div>
+                  </div>
+                </div>
+              ))}
+               <p className="text-xs text-muted-foreground text-center pt-2">
+                * La información sobre compañeros de piso es ilustrativa y no representa a inquilinos reales.
+              </p>
             </CardContent>
           </Card>
-          */}
 
         </div>
 
@@ -351,3 +414,5 @@ export default function RoomPage() {
     </div>
   );
 }
+
+        
