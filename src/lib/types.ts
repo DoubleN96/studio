@@ -52,7 +52,16 @@ export interface Room {
   flat_video?: string | null; // Added for YouTube video
 }
 
+export interface SimulatedPaymentAttempt {
+  date: string; // ISO string
+  status: 'success' | 'failed';
+  message?: string;
+  amount: number;
+  currency: string;
+}
+
 export interface ReservationDetailsType {
+  reservationId?: string; // Unique ID for the reservation
   // Step 1
   startDate?: Date;
   duration?: number;
@@ -62,7 +71,10 @@ export interface ReservationDetailsType {
   phone?: string;
 
   // Step 3 - Additional Information
-  bookedRoom?: string;
+  bookedRoom?: string; // Typically room.title or room.code
+  bookedRoomId?: number; // Store room.id for easy lookup
+  bookedRoomPrice?: number;
+  bookedRoomCurrency?: string;
   birthDate?: Date;
   gender?: string;
   studyOrWork?: string;
@@ -76,10 +88,23 @@ export interface ReservationDetailsType {
   emergencyContact?: string;
   universityWorkCenter?: string;
 
-  // Mock file tracking (not part of form data directly)
+  // Mock file tracking
   passportIdFile?: File | null;
   proofOfStudiesWorkFile?: File | null;
+
+  // Simulated Redsys Tokenization Data (from Step 2)
+  redsysMerchantIdentifier?: string; // Token
+  redsysCofTxnid?: string; // Original Transaction ID for COF
+  redsysCardExpiry?: string; // AAMM format (e.g., "2912" for Dec 2029)
+  redsysCardLast4?: string;
+  redsysCardNumberMasked?: string; // e.g., "454881******0003"
+  redsysCardBrand?: string; // e.g., "1" (Visa)
+
+  // Simulated Payment Tracking for Dashboard
+  simulatedPaymentAttempts?: SimulatedPaymentAttempt[];
+  initialPaymentStatus?: 'success' | 'pending' | 'failed';
 }
+
 
 // For General Contract Settings on Dashboard
 export interface GeneralContractSettings {
