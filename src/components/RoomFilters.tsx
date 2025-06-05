@@ -77,8 +77,8 @@ export default function RoomFilters({ onFilterChange, initialFilters, availableC
       "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm text-muted-foreground",
       "ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
       "cursor-not-allowed opacity-50" 
-    )}>
-      <div className="flex items-center">
+    )} suppressHydrationWarning={true}>
+      <div className="flex items-center" suppressHydrationWarning={true}>
         <MapPinIcon className="h-5 w-5 mr-2 flex-shrink-0" />
         <span>Selecciona ciudad</span>
       </div>
@@ -87,8 +87,8 @@ export default function RoomFilters({ onFilterChange, initialFilters, availableC
   );
 
   return (
-    <div className="p-6 mb-8 bg-card rounded-xl shadow-lg space-y-4 md:space-y-0 md:grid md:grid-cols-2 lg:grid-cols-5 md:gap-4 md:items-end">
-      <div className="lg:col-span-1">
+    <div className="p-6 mb-8 bg-card rounded-xl shadow-lg space-y-4 md:space-y-0 md:grid md:grid-cols-2 lg:grid-cols-5 md:gap-4 md:items-end" suppressHydrationWarning={true}>
+      <div className="lg:col-span-1" suppressHydrationWarning={true}>
         <label htmlFor="city-filter" className="block text-sm font-medium text-foreground mb-1">Ciudad</label>
         {isClient ? (
           <Select 
@@ -115,7 +115,7 @@ export default function RoomFilters({ onFilterChange, initialFilters, availableC
         )}
       </div>
 
-      <div className="lg:col-span-1">
+      <div className="lg:col-span-1" suppressHydrationWarning={true}>
         <label htmlFor="checkInDate" className="block text-sm font-medium text-foreground mb-1">Fecha de Entrada</label>
         <Popover>
           <PopoverTrigger asChild>
@@ -140,7 +140,7 @@ export default function RoomFilters({ onFilterChange, initialFilters, availableC
         </Popover>
       </div>
       
-      <div className="lg:col-span-1">
+      <div className="lg:col-span-1" suppressHydrationWarning={true}>
         <label htmlFor="checkOutDate" className="block text-sm font-medium text-foreground mb-1">Fecha de Salida</label>
         <Popover>
           <PopoverTrigger asChild>
@@ -166,9 +166,9 @@ export default function RoomFilters({ onFilterChange, initialFilters, availableC
         </Popover>
       </div>
 
-      <div className="lg:col-span-1">
+      <div className="lg:col-span-1" suppressHydrationWarning={true}>
         <label htmlFor="maxPrice" className="block text-sm font-medium text-foreground mb-1">Presupuesto Máx. (€/mes)</label>
-        <div className="relative">
+        <div className="relative" suppressHydrationWarning={true}>
           <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           <Input
             id="maxPrice"
@@ -182,7 +182,7 @@ export default function RoomFilters({ onFilterChange, initialFilters, availableC
         </div>
       </div>
 
-      <div className="flex gap-2 pt-5 lg:col-span-1 lg:pt-0 self-end">
+      <div className="flex gap-2 pt-5 lg:col-span-1 lg:pt-0 self-end" suppressHydrationWarning={true}>
         <Button onClick={handleApplyFilters} className="w-full md:w-auto">
           <Filter className="mr-2 h-4 w-4" /> Aplicar
         </Button>

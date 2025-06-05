@@ -170,7 +170,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className="space-y-8"> 
+    <div className="space-y-8" suppressHydrationWarning={true}> 
       <h1 className="text-3xl font-bold text-center text-primary">Encuentra tu Espacio Ideal</h1>
       
       <RoomFilters
@@ -179,9 +179,9 @@ export default function HomePage() {
         availableCities={uniqueCities}
       />
 
-      <div className="h-[400px] w-full bg-card border border-border rounded-lg shadow-md p-1">
+      <div className="h-[400px] w-full bg-card border border-border rounded-lg shadow-md p-1" suppressHydrationWarning={true}>
         {(isLoading && allRooms.length === 0) ? (
-           <div key="map-loading-state" className="h-full w-full rounded-md bg-muted flex items-center justify-center text-muted-foreground">Cargando datos para el mapa...</div>
+           <div key="map-loading-state" className="h-full w-full rounded-md bg-muted flex items-center justify-center text-muted-foreground" suppressHydrationWarning={true}>Cargando datos para el mapa...</div>
         ) : (!isLoading && allRooms.length === 0 && !error) ? (
           <Alert key="map-no-rooms-state" className="h-full flex flex-col items-center justify-center text-center">
             <MapPin className="h-8 w-8 mb-2 text-muted-foreground" />
@@ -196,7 +196,7 @@ export default function HomePage() {
       {isLoading && allRooms.length === 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {Array.from({ length: ITEMS_PER_PAGE }).map((_, index) => (
-            <div key={index} className="space-y-3">
+            <div key={index} className="space-y-3" suppressHydrationWarning={true}>
               <Skeleton className="h-[200px] w-full rounded-xl" />
               <Skeleton className="h-6 w-3/4" />
               <Skeleton className="h-4 w-1/2" />
