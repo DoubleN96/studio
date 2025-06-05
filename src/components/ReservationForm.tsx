@@ -24,8 +24,8 @@ import {
 import { useSearchParams } from 'next/navigation';
 import { simulateRedsysInitialTokenization, formatExpiryDateForDisplay, addReservation } from '@/lib/redsysUtils'; // Import Redsys utils
 
-// Schema for Step 1 (Dates and Contact Info)
-const step1Schema = z.object({
+// Schema for Original Step 1 (Dates and Contact Info)
+const originalStep1Schema = z.object({
   startDate: z.date({ required_error: "La fecha de entrada es obligatoria." }),
   duration: z.number({invalid_type_error: "La duración debe ser un número.", required_error: "La duración es obligatoria."}).min(1, "La duración mínima es de 1 mes."),
   firstName: z.string().min(1, "El nombre es obligatorio."),
@@ -34,15 +34,13 @@ const step1Schema = z.object({
   phone: z.string().min(9, "El teléfono debe tener al menos 9 caracteres."),
 });
 
-// Schema for Step 2 (Simulated Payment - basic validation for cardholder name)
-const step2Schema = z.object({
+// Schema for Original Step 2 (Simulated Payment)
+const originalStep2Schema = z.object({
   cardHolderName: z.string().min(3, "El nombre del titular es obligatorio."),
-  // In a real scenario, you'd use a payment Element from Stripe/Braintree, or Redsys's own fields.
-  // For simulation, we just need something to trigger the mock API.
 });
 
-// Schema for Step 3 (Additional Info)
-const step3Schema = z.object({
+// Schema for Original Step 3 (Additional Info)
+const originalStep3Schema = z.object({
   birthDate: z.date({ required_error: "La fecha de nacimiento es obligatoria." }),
   gender: z.string().min(1, "El género es obligatorio."),
   studyOrWork: z.string().min(1, "Debes indicar si estudias o trabajas."),
@@ -55,18 +53,20 @@ const step3Schema = z.object({
   universityWorkCenter: z.string().optional(),
 });
 
+// Combined schema for the new Step 1
+const combinedStep1Schema = originalStep1Schema.merge(originalStep2Schema);
+
 // Combined type for all form data across steps
-type ReservationFormData = z.infer<typeof step1Schema> & Partial<z.infer<typeof step2Schema>> & Partial<z.infer<typeof step3Schema>>;
+type ReservationFormData = z.infer<typeof combinedStep1Schema> & Partial<z.infer<typeof originalStep3Schema>>;
 
 interface ReservationFormProps {
   room: Room;
 }
 
 const STEPS = [
-  { id: 1, title: 'Fechas e Información de Contacto', schema: step1Schema },
-  { id: 2, title: 'Pago Inicial y Tokenización (Simulación)', schema: step2Schema },
-  { id: 3, title: 'Información Adicional del Inquilino', schema: step3Schema },
-  { id: 4, title: 'Confirmación y Contrato (Simulación)' },
+  { id: 1, title: 'Fechas, Contacto y Pago Inicial (Simulación)', schema: combinedStep1Schema },
+  { id: 2, title: 'Información Adicional del Inquilino', schema: originalStep3Schema },
+  { id: 3, title: 'Confirmación y Contrato (Simulación)' }, // No specific schema for the final confirmation display
 ];
 
 export default function ReservationForm({ room }: ReservationFormProps) {
@@ -99,7 +99,7 @@ export default function ReservationForm({ room }: ReservationFormProps) {
   };
 
   const [reservationDetails, setReservationDetails] = useState<ReservationDetailsType>({
-    reservationId: `res_${Date.now()}_${Math.random().toString(16).slice(2)}`, // Generate initial ID
+    reservationId: `res_${Date.now()}_${Math.random().toString(16).slice(2)}`,
     duration: getInitialDuration(),
     startDate: getInitialStartDate(),
     bookedRoom: room.title || room.code,
@@ -122,22 +122,16 @@ export default function ReservationForm({ room }: ReservationFormProps) {
       startDate: reservationDetails.startDate,
       duration: reservationDetails.duration,
       firstName: '', lastName: '', email: '', phone: '',
-      cardHolderName: '', // For step 2
+      cardHolderName: '', 
       birthDate: undefined, gender: undefined, studyOrWork: undefined, currentAddress: '',
       passportIdNumber: '', originCountry: '', iban: '', bic: '', emergencyContact: '', universityWorkCenter: '',
     },
-    // Re-validate on step change
     shouldFocusError: true,
-    mode: "onChange", // Or "onBlur"
+    mode: "onChange",
   });
 
   const watchedStartDate = watch("startDate");
   const watchedDuration = watch("duration");
-
-  useEffect(() => {
-    // Update current schema for validation when step changes
-    setValue('cardHolderName', getValues('cardHolderName') || ''); // Ensure step 2 field has a default
-  }, [currentStep, setValue, getValues]);
 
   useEffect(() => {
     let newCheckOutDate: Date | undefined = undefined;
@@ -194,15 +188,11 @@ export default function ReservationForm({ room }: ReservationFormProps) {
   const handlePaymentSimulation: SubmitHandler<ReservationFormData> = async (data) => {
     setIsProcessingPayment(true);
     toast({ title: "Procesando Pago Simulado...", description: "Obteniendo token de Redsys (simulación)." });
-
-    // Simulate calling Redsys for tokenization (Step 1 of Redsys MIT flow)
-    // For simulation, we'll use a fixed amount or 25% of first month's rent as deposit.
-    const depositAmount = Math.round(room.monthly_price * 0.25 * 100); // Amount in cents
+    const depositAmount = Math.round(room.monthly_price * 0.25 * 100); 
 
     try {
       const redsysResponse = await simulateRedsysInitialTokenization(depositAmount);
-
-      if (redsysResponse.Ds_Response === "0000") { // Success
+      if (redsysResponse.Ds_Response === "0000") { 
         setReservationDetails(prev => ({
           ...prev,
           redsysMerchantIdentifier: redsysResponse.Ds_Merchant_Identifier,
@@ -232,87 +222,56 @@ export default function ReservationForm({ room }: ReservationFormProps) {
   };
 
   const onSubmit: SubmitHandler<ReservationFormData> = async (data) => {
-    const currentStepConfig = STEPS[currentStep - 1];
-    const isValidStep = currentStepConfig.schema ? await trigger(Object.keys(currentStepConfig.schema.shape) as Array<keyof ReservationFormData>) : true;
-    
-    if (!isValidStep) {
-        toast({ variant: "destructive", title: "Error de Validación", description: "Por favor, corrige los errores en el formulario."});
-        return;
-    }
-
-    // Update reservationDetails with data from the current step
-    setReservationDetails(prev => ({
-      ...prev,
-      // Step 1 data
-      ...(currentStep === 1 && {
-        startDate: data.startDate,
-        duration: data.duration,
-        firstName: data.firstName,
-        lastName: data.lastName,
-        email: data.email,
-        phone: data.phone,
-        checkInDate: data.startDate,
-        checkOutDate: (data.startDate && data.duration) ? addMonths(data.startDate, data.duration) : undefined,
-      }),
-      // Step 3 data (Step 2 is handled by handlePaymentSimulation)
-      ...(currentStep === 3 && {
-        birthDate: data.birthDate,
-        gender: data.gender,
-        studyOrWork: data.studyOrWork,
-        currentAddress: data.currentAddress,
-        passportIdNumber: data.passportIdNumber,
-        originCountry: data.originCountry,
-        iban: data.iban,
-        bic: data.bic,
-        emergencyContact: data.emergencyContact,
-        universityWorkCenter: data.universityWorkCenter,
-        passportIdFile: passportFile, // Already in state
-        proofOfStudiesWorkFile: proofFile, // Already in state
-      }),
-    }));
+    setReservationDetails(prev => {
+      let updatedDetails = {...prev};
+      if (currentStep === 1) {
+        updatedDetails = {
+          ...updatedDetails,
+          startDate: data.startDate,
+          duration: data.duration,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          email: data.email,
+          phone: data.phone,
+          checkInDate: data.startDate,
+          checkOutDate: (data.startDate && data.duration) ? addMonths(data.startDate, data.duration) : undefined,
+        };
+      } else if (currentStep === 2) { // Corresponds to original Step 3 (Additional Info)
+        updatedDetails = {
+          ...updatedDetails,
+          birthDate: data.birthDate,
+          gender: data.gender,
+          studyOrWork: data.studyOrWork,
+          currentAddress: data.currentAddress,
+          passportIdNumber: data.passportIdNumber,
+          originCountry: data.originCountry,
+          iban: data.iban,
+          bic: data.bic,
+          emergencyContact: data.emergencyContact,
+          universityWorkCenter: data.universityWorkCenter,
+          passportIdFile: passportFile,
+          proofOfStudiesWorkFile: proofFile,
+        };
+      }
+      return updatedDetails;
+    });
 
     if (currentStep === 1) {
-      proceedToNextStep();
-    } else if (currentStep === 2) {
-      // Submission for step 2 is handled by the "Pagar y Continuar" button calling handlePaymentSimulation
-      // This generic onSubmit will not be directly called by step 2's main button
-    } else if (currentStep === 3) {
-       if (!passportFile) {
+      if (reservationDetails.initialPaymentStatus === 'success') {
+        proceedToNextStep();
+      } else {
+        // Validation for combinedStep1Schema has passed via react-hook-form's handleSubmit
+        await handlePaymentSimulation(data); // This will call proceedToNextStep on success
+      }
+    } else if (currentStep === 2) { // Corresponds to original Step 3
+      if (!passportFile) {
             toast({ variant: "destructive", title: "Archivo Requerido", description: "Por favor, sube una foto de tu pasaporte/ID." });
-            return; // Stop if passport file is missing
+            return;
         }
       proceedToNextStep();
-    } else if (currentStep === 4) {
-      // Finalize reservation (e.g., save to localStorage)
-      const finalReservationData = {
-        ...reservationDetails, // Make sure it has the latest state
-        // Ensure all relevant fields from form values are captured if not already in reservationDetails
-        firstName: getValues("firstName") || reservationDetails.firstName,
-        lastName: getValues("lastName") || reservationDetails.lastName,
-        email: getValues("email") || reservationDetails.email,
-        phone: getValues("phone") || reservationDetails.phone,
-        birthDate: getValues("birthDate") || reservationDetails.birthDate,
-        gender: getValues("gender") || reservationDetails.gender,
-        studyOrWork: getValues("studyOrWork") || reservationDetails.studyOrWork,
-        currentAddress: getValues("currentAddress") || reservationDetails.currentAddress,
-        passportIdNumber: getValues("passportIdNumber") || reservationDetails.passportIdNumber,
-        originCountry: getValues("originCountry") || reservationDetails.originCountry,
-        iban: getValues("iban") || reservationDetails.iban,
-        bic: getValues("bic") || reservationDetails.bic,
-        emergencyContact: getValues("emergencyContact") || reservationDetails.emergencyContact,
-        universityWorkCenter: getValues("universityWorkCenter") || reservationDetails.universityWorkCenter,
-        simulatedPaymentAttempts: reservationDetails.simulatedPaymentAttempts || [],
-      };
-      
-      // Note: File objects cannot be directly stored in JSON/localStorage.
-      // For simulation, we might store file names or just acknowledge they were "uploaded".
-      // Here, we are implicitly relying on `passportIdFile` and `proofOfStudiesWorkFile` in `reservationDetails` which are File objects.
-      // For actual localStorage, you'd handle this differently (e.g., store file names).
-      // For this simulation, we'll proceed with the understanding that `addReservation` handles the structure.
-      
-      addReservation(finalReservationData);
+    } else if (currentStep === 3) { // Corresponds to original Step 4 (Final Confirmation)
+      addReservation(reservationDetails); // reservationDetails should be fully populated
       toast({ title: "Reserva Simulada Guardada Localmente", description: "Puedes verla en el Dashboard." });
-      // Potentially redirect or show a final success message.
     }
   };
 
@@ -339,13 +298,11 @@ export default function ReservationForm({ room }: ReservationFormProps) {
         <Progress value={progressPercentage} className="mt-2" />
       </CardHeader>
 
-      {/* We use a single form tag that conditionally renders content based on currentStep */}
-      {/* The submit handler (onSubmit) is general, but step 2 has its own submit via handlePaymentSimulation */}
-      <form onSubmit={handleSubmit(currentStep === 2 ? handlePaymentSimulation : onSubmit)}>
+      <form onSubmit={handleSubmit(onSubmit)}>
         <CardContent>
           {currentStep === 1 && (
             <div className="space-y-6">
-              {/* Step 1 Fields: Start Date, Duration, Name, Email, Phone */}
+              {/* Fields from original Step 1 */}
               <div>
                 <Label htmlFor="startDate" className="block text-sm font-medium mb-1">Fecha de Entrada</Label>
                 <Controller name="startDate" control={control} render={({ field }) => (
@@ -391,72 +348,64 @@ export default function ReservationForm({ room }: ReservationFormProps) {
                 <Controller name="phone" control={control} render={({ field }) => <Input {...field} type="tel" placeholder="Ej: +34 656 93 33 91" />} />
                 {errors.phone && <p className="text-sm text-destructive mt-1">{errors.phone.message}</p>}
               </div>
+
+              {/* Fields from original Step 2 (Payment Simulation) */}
+              <div className="border-t pt-6 mt-6 space-y-6">
+                <div className="text-center space-y-2">
+                    <CreditCard className="mx-auto h-10 w-10 text-primary" />
+                    <h3 className="text-md font-semibold">Pago Inicial (Simulación)</h3>
+                    <p className="text-muted-foreground text-xs">
+                    Introduce los datos para simular el primer pago y guardar tu método de pago.
+                    </p>
+                </div>
+                <div className="bg-muted/50 p-3 rounded-md text-sm">
+                    <p><strong>Habitación:</strong> {room.title}</p>
+                    <p><strong>Precio Mensual:</strong> {room.monthly_price.toLocaleString('es-ES', {style:'currency', currency: room.currency_code || 'EUR'})}</p>
+                    <p className="font-semibold"><strong>Depósito/Primer Pago (25%):</strong> {(room.monthly_price * 0.25).toLocaleString('es-ES', {style:'currency', currency: room.currency_code || 'EUR'})}</p>
+                </div>
+                <div>
+                    <Label htmlFor="cardHolderName" className="flex items-center mb-1"><User className="mr-2 h-4 w-4 text-accent" />Nombre del Titular</Label>
+                    <Controller name="cardHolderName" control={control} render={({ field }) => <Input {...field} id="cardHolderName" placeholder="Nombre completo en la tarjeta" />} />
+                    {errors.cardHolderName && <p className="text-sm text-destructive mt-1">{errors.cardHolderName.message}</p>}
+                </div>
+                <div className="space-y-1">
+                    <Label className="text-xs font-medium">Número de Tarjeta (Simulación)</Label>
+                    <div className="flex items-center p-2 border rounded-md bg-gray-100 dark:bg-gray-800 text-xs">
+                    <Input type="text" readOnly value="**** **** **** **** (Simulado)" className="border-none bg-transparent focus:ring-0 pointer-events-none h-auto py-1"/>
+                    </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                    <div>
+                    <Label className="text-xs font-medium">Expiración (Simulación)</Label>
+                    <div className="flex items-center p-2 border rounded-md bg-gray-100 dark:bg-gray-800 text-xs">
+                        <Input type="text" readOnly value="MM/YY (Simulado)" className="border-none bg-transparent focus:ring-0 pointer-events-none h-auto py-1"/>
+                    </div>
+                    </div>
+                    <div>
+                    <Label className="text-xs font-medium">CVV (Simulación)</Label>
+                    <div className="flex items-center p-2 border rounded-md bg-gray-100 dark:bg-gray-800 text-xs">
+                        <Input type="text" readOnly value="*** (Simulado)" className="border-none bg-transparent focus:ring-0 pointer-events-none h-auto py-1"/>
+                    </div>
+                    </div>
+                </div>
+                {reservationDetails.redsysMerchantIdentifier && reservationDetails.initialPaymentStatus === 'success' && (
+                    <div className="mt-3 p-2 bg-green-100 border border-green-300 text-green-700 rounded-md text-xs space-y-0.5">
+                    <p className="font-semibold flex items-center"><CheckCircle className="mr-1 h-4 w-4"/> Tokenización Exitosa</p>
+                    <p><strong>Token:</strong> {reservationDetails.redsysMerchantIdentifier.substring(0,10)}...</p>
+                    <p><strong>Tarjeta:</strong> {reservationDetails.redsysCardNumberMasked} (Exp: {formatExpiryDateForDisplay(reservationDetails.redsysCardExpiry)})</p>
+                    </div>
+                )}
+                {reservationDetails.initialPaymentStatus === 'failed' && (
+                    <div className="mt-3 p-2 bg-red-100 border border-red-300 text-red-700 rounded-md text-xs">
+                    <p className="font-semibold flex items-center"><AlertTriangle className="mr-1 h-4 w-4"/> Fallo en tokenización.</p>
+                    </div>
+                )}
+              </div>
             </div>
           )}
 
-          {currentStep === 2 && (
+          {currentStep === 2 && ( // Was original Step 3
             <div className="space-y-6">
-              <div className="text-center space-y-2">
-                <CreditCard className="mx-auto h-12 w-12 text-primary" />
-                <h3 className="text-lg font-semibold">Pago Inicial y Tokenización (Simulación)</h3>
-                <p className="text-muted-foreground text-sm">
-                  Introduce los datos para simular el primer pago (ej. depósito) y guardar de forma segura tu método de pago para futuros cobros mensuales.
-                </p>
-              </div>
-              
-              <div className="bg-muted/50 p-4 rounded-md">
-                 <p className="text-sm"><strong>Habitación:</strong> {room.title}</p>
-                 <p className="text-sm"><strong>Precio Mensual:</strong> {room.monthly_price.toLocaleString('es-ES', {style:'currency', currency: room.currency_code || 'EUR'})}</p>
-                 <p className="text-sm font-semibold"><strong>Depósito/Primer Pago (25%):</strong> {(room.monthly_price * 0.25).toLocaleString('es-ES', {style:'currency', currency: room.currency_code || 'EUR'})}</p>
-              </div>
-
-              <div>
-                <Label htmlFor="cardHolderName" className="flex items-center mb-1"><User className="mr-2 h-4 w-4 text-accent" />Nombre del Titular de la Tarjeta</Label>
-                <Controller name="cardHolderName" control={control} render={({ field }) => <Input {...field} id="cardHolderName" placeholder="Nombre completo como aparece en la tarjeta" />} />
-                {errors.cardHolderName && <p className="text-sm text-destructive mt-1">{errors.cardHolderName.message}</p>}
-              </div>
-              
-              {/* Simulated Card Input Placeholder */}
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Número de Tarjeta (Simulación)</Label>
-                <div className="flex items-center p-2 border rounded-md bg-gray-100 dark:bg-gray-800">
-                  <Input type="text" readOnly value="**** **** **** **** (Simulado)" className="border-none bg-transparent focus:ring-0 pointer-events-none"/>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-sm font-medium">Expiración (Simulación)</Label>
-                   <div className="flex items-center p-2 border rounded-md bg-gray-100 dark:bg-gray-800">
-                    <Input type="text" readOnly value="MM/YY (Simulado)" className="border-none bg-transparent focus:ring-0 pointer-events-none"/>
-                  </div>
-                </div>
-                <div>
-                  <Label className="text-sm font-medium">CVV (Simulación)</Label>
-                   <div className="flex items-center p-2 border rounded-md bg-gray-100 dark:bg-gray-800">
-                    <Input type="text" readOnly value="*** (Simulado)" className="border-none bg-transparent focus:ring-0 pointer-events-none"/>
-                  </div>
-                </div>
-              </div>
-              
-              {reservationDetails.redsysMerchantIdentifier && reservationDetails.initialPaymentStatus === 'success' && (
-                <div className="mt-4 p-3 bg-green-100 border border-green-300 text-green-700 rounded-md text-sm space-y-1">
-                  <p className="font-semibold flex items-center"><CheckCircle className="mr-2 h-5 w-5"/> Tokenización Exitosa (Simulada)</p>
-                  <p><strong>Referencia Redsys:</strong> {reservationDetails.redsysMerchantIdentifier.substring(0,15)}...</p>
-                  <p><strong>Tarjeta:</strong> {reservationDetails.redsysCardNumberMasked}</p>
-                  <p><strong>Expira:</strong> {formatExpiryDateForDisplay(reservationDetails.redsysCardExpiry)}</p>
-                </div>
-              )}
-              {reservationDetails.initialPaymentStatus === 'failed' && (
-                <div className="mt-4 p-3 bg-red-100 border border-red-300 text-red-700 rounded-md text-sm">
-                   <p className="font-semibold flex items-center"><AlertTriangle className="mr-2 h-5 w-5"/> Fallo en la tokenización (simulada).</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {currentStep === 3 && (
-            <div className="space-y-6">
-              {/* Step 3 Fields: Additional Info */}
               <div><Label htmlFor="bookedRoom" className="flex items-center mb-1"><HomeIcon className="mr-2 h-4 w-4 text-accent" />Habitación Seleccionada</Label><Input id="bookedRoom" value={reservationDetails.bookedRoom || room.title} readOnly className="bg-muted"/></div>
               <div>
                 <Label htmlFor="birthDate" className="block text-sm font-medium mb-1">Fecha de Nacimiento</Label>
@@ -488,7 +437,7 @@ export default function ReservationForm({ room }: ReservationFormProps) {
             </div>
           )}
 
-          {currentStep === 4 && (
+          {currentStep === 3 && ( // Was original Step 4
             <div className="text-center space-y-4">
               <FileText className="mx-auto h-16 w-16 text-green-600" />
               <h3 className="text-xl font-semibold">¡Reserva Casi Lista!</h3>
@@ -530,20 +479,25 @@ export default function ReservationForm({ room }: ReservationFormProps) {
             <ArrowLeft className="mr-2 h-4 w-4" /> Anterior
           </Button>
 
-          {currentStep < STEPS.length && currentStep !== 2 && ( 
-            <Button type="submit">
-              Siguiente <ArrowRight className="ml-2 h-4 w-4" />
+          {currentStep < STEPS.length && (
+            <Button 
+              type="submit" 
+              disabled={currentStep === 1 && isProcessingPayment}
+            >
+              {currentStep === 1 && isProcessingPayment && <RefreshCw className="mr-2 h-4 w-4 animate-spin" />}
+              {currentStep === 1 && !isProcessingPayment && reservationDetails.initialPaymentStatus !== 'success' && <CreditCard className="mr-2 h-4 w-4" />}
+              
+              {currentStep === 1 
+                ? (reservationDetails.initialPaymentStatus === 'success' ? 'Siguiente' : 'Pagar y Continuar (Simulación)')
+                : 'Siguiente'}
+              
+              {(currentStep > 1 || (currentStep === 1 && reservationDetails.initialPaymentStatus === 'success')) && <ArrowRight className="ml-2 h-4 w-4" />}
             </Button>
           )}
-           {currentStep === 2 && (
-             <Button type="submit" disabled={isProcessingPayment || reservationDetails.initialPaymentStatus === 'success'}>
-                {isProcessingPayment ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
-                {reservationDetails.initialPaymentStatus === 'success' ? 'Pago Realizado' : 'Pagar y Continuar (Simulación)'}
-             </Button>
-           )}
+          
           {currentStep === STEPS.length && ( 
-              <Button onClick={() => handleSubmit(onSubmit)()} type="button"> {/* Ensures data is saved */}
-                  Finalizar y Guardar Reserva (Simulación)
+              <Button type="submit">
+                  Finalizar y Guardar Reserva (Simulación) <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
           )}
         </CardFooter>
@@ -551,3 +505,5 @@ export default function ReservationForm({ room }: ReservationFormProps) {
     </Card>
   );
 }
+
+    
