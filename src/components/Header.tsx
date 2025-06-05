@@ -9,7 +9,7 @@ export default function Header() {
       <div className="container mx-auto px-4 py-4 flex justify-between items-center">
         <Link href="/" className="text-2xl font-bold text-primary flex items-center">
           <Home className="mr-2 h-7 w-7 text-accent" />
-          ChattyRental
+          Tripath.es
         </Link>
         <nav>
           <ul className="flex items-center space-x-2 md:space-x-4">
