@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { format, differenceInCalendarMonths } from 'date-fns';
+import { format, isBefore, getYear, getMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 interface ReservationSummaryDialogProps {
@@ -33,6 +33,21 @@ export default function ReservationSummaryDialog({
   selectedCheckInDate,
   selectedCheckOutDate,
 }: ReservationSummaryDialogProps) {
+  
+  const calculatedDurationString = () => {
+    if (selectedCheckInDate && selectedCheckOutDate && !isBefore(selectedCheckOutDate, selectedCheckInDate)) {
+      const startYear = getYear(selectedCheckInDate);
+      const startMonth = getMonth(selectedCheckInDate);
+      const endYear = getYear(selectedCheckOutDate);
+      const endMonth = getMonth(selectedCheckOutDate);
+
+      let months = (endYear - startYear) * 12 + (endMonth - startMonth) + 1;
+      months = Math.max(1, months); // Ensure at least 1 month
+      return `${months} mes(es)`;
+    }
+    return 'N/A';
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[480px]">
@@ -71,11 +86,11 @@ export default function ReservationSummaryDialog({
               {selectedCheckOutDate ? format(selectedCheckOutDate, "PPP", { locale: es }) : 'A seleccionar en el siguiente paso'}
             </p>
           </div>
-          {selectedCheckInDate && selectedCheckOutDate && (
+          {selectedCheckInDate && selectedCheckOutDate && !isBefore(selectedCheckOutDate, selectedCheckInDate) && (
              <div>
               <span className="font-semibold text-muted-foreground">Duración Estimada:</span>
               <p className="text-foreground">
-                {differenceInCalendarMonths(selectedCheckOutDate, selectedCheckInDate) || 1} mes(es)
+                {calculatedDurationString()}
               </p>
             </div>
           )}
@@ -90,7 +105,7 @@ export default function ReservationSummaryDialog({
               onOpenChange(false); 
             }}
             className="bg-primary hover:bg-primary/90"
-            disabled={!selectedCheckInDate}
+            disabled={!selectedCheckInDate || !selectedCheckOutDate || (selectedCheckInDate && selectedCheckOutDate && isBefore(selectedCheckOutDate, selectedCheckInDate))}
           >
             Ir a Reservar
           </Button>
@@ -99,5 +114,3 @@ export default function ReservationSummaryDialog({
     </Dialog>
   );
 }
-
-    
