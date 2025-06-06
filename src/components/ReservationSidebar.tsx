@@ -13,7 +13,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import ReservationSummaryDialog from '@/components/ReservationSummaryDialog';
 import { CalendarDays, Info, ShieldCheck, Eye, CalendarIcon as LucideCalendarIcon } from 'lucide-react';
 import { getFromLocalStorage } from '@/lib/localStorageUtils';
-import { format, parseISO, isBefore, addMonths, differenceInCalendarMonths, startOfDay, formatISO, isValid, getYear, getMonth } from 'date-fns';
+import { format, parseISO, isBefore, addMonths, differenceInDays, startOfDay, formatISO, isValid, getYear, getMonth, getDate, endOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
@@ -26,6 +26,49 @@ interface ReservationSidebarProps {
   onCheckInDateSelect: (date: Date | undefined) => void;
   onCheckOutDateSelect: (date: Date | undefined) => void;
 }
+
+// Helper function to calculate duration in months (allowing .5 for half-months)
+export function calculateDurationInDecimalMonths(
+  checkInDate?: Date, 
+  checkOutDate?: Date,
+  minimumStayMonthsApi?: number | null
+): number {
+  if (!checkInDate || !checkOutDate || !isValid(checkInDate) || !isValid(checkOutDate) || isBefore(checkOutDate, checkInDate)) {
+    return minimumStayMonthsApi || 1;
+  }
+
+  const cIn = startOfDay(checkInDate);
+  const cOut = endOfDay(checkOutDate); // Use endOfDay for checkout to correctly count the last day
+
+  let months = 0;
+  let currentMonthStart = new Date(cIn);
+
+  // Iterate through months
+  while (isBefore(currentMonthStart, cOut)) {
+    const endOfCurrentIterationMonth = addMonths(currentMonthStart, 1);
+    
+    if (isBefore(cOut, endOfCurrentIterationMonth) || isEqual(cOut, endOfCurrentIterationMonth)) {
+      // Last month (or partial month)
+      const daysInThisSegment = differenceInDays(cOut, currentMonthStart) + 1;
+      if (daysInThisSegment <= 15) {
+        months += 0.5;
+      } else {
+        months += 1;
+      }
+      break;
+    } else {
+      // Full month
+      months += 1;
+      currentMonthStart = endOfCurrentIterationMonth;
+    }
+  }
+  
+  // Ensure the result is at least 0.5 if there's any duration,
+  // and respects the API's minimum stay if provided.
+  const calculatedMin = months > 0 ? Math.max(0.5, months) : 0.5;
+  return minimumStayMonthsApi ? Math.max(minimumStayMonthsApi, calculatedMin) : calculatedMin;
+}
+
 
 export default function ReservationSidebar({ 
   room, 
@@ -87,31 +130,29 @@ export default function ReservationSidebar({
    const today = startOfDay(new Date());
    const effectiveMinCheckInDate = isBefore(minCalendarDateForCheckIn, today) ? today : minCalendarDateForCheckIn;
 
-  const minStayMonths = room.availability.minimum_stay_months;
+  const minStayMonthsDecimal = room.availability.minimum_stay_months || 1;
+
 
   const defaultCheckoutCalendarInitialMonth = useMemo(() => {
     if (selectedCheckInDate) {
-      if (typeof minStayMonths === 'number' && minStayMonths > 0) {
-        return addMonths(selectedCheckInDate, minStayMonths);
+      const minStay = typeof minStayMonthsDecimal === 'number' && minStayMonthsDecimal > 0 ? minStayMonthsDecimal : 1;
+      // For .5, we add days instead of full months for calendar positioning
+      if (minStay % 1 !== 0) { // if it's a decimal like 0.5, 1.5
+          return addMonths(selectedCheckInDate, Math.floor(minStay)); // Show the month of the floor
       }
-      return selectedCheckInDate; 
+      return addMonths(selectedCheckInDate, Math.floor(minStay));
     }
     return undefined; 
-  }, [selectedCheckInDate, minStayMonths]);
+  }, [selectedCheckInDate, minStayMonthsDecimal]);
+  
 
   const calculatedDurationString = useMemo(() => {
-    if (selectedCheckInDate && selectedCheckOutDate && !isBefore(selectedCheckOutDate, selectedCheckInDate)) {
-      const startYear = getYear(selectedCheckInDate);
-      const startMonth = getMonth(selectedCheckInDate);
-      const endYear = getYear(selectedCheckOutDate);
-      const endMonth = getMonth(selectedCheckOutDate);
-
-      let months = (endYear - startYear) * 12 + (endMonth - startMonth) + 1;
-      months = Math.max(1, months); // Ensure at least 1 month
-      return `${months} mes(es)`;
+    if (selectedCheckInDate && selectedCheckOutDate && isValid(selectedCheckInDate) && isValid(selectedCheckOutDate) && !isBefore(selectedCheckOutDate, selectedCheckInDate)) {
+      const duration = calculateDurationInDecimalMonths(selectedCheckInDate, selectedCheckOutDate, room.availability.minimum_stay_months);
+      return `${duration % 1 === 0 ? duration.toFixed(0) : duration.toFixed(1)} mes(es)`;
     }
     return 'N/A';
-  }, [selectedCheckInDate, selectedCheckOutDate]);
+  }, [selectedCheckInDate, selectedCheckOutDate, room.availability.minimum_stay_months]);
 
 
   return (
@@ -185,7 +226,7 @@ export default function ReservationSidebar({
                     onSelect={onCheckOutDateSelect}
                     initialFocus
                     locale={es}
-                    defaultMonth={defaultCheckoutCalendarInitialMonth}
+                    defaultMonth={defaultCheckoutCalendarInitialMonth} // Updated to use calculated default
                     disabled={(date) => !selectedCheckInDate || isBefore(date, selectedCheckInDate)}
                   />
                 </PopoverContent>
@@ -202,7 +243,7 @@ export default function ReservationSidebar({
               <span>Tarifa de servicio ({serviceFeePercentage}%)</span>
               <span>{platformFee.toLocaleString('es-ES', { style: 'currency', currency: room.currency_code || 'EUR' })}</span>
             </div>
-             {selectedCheckInDate && selectedCheckOutDate && !isBefore(selectedCheckOutDate, selectedCheckInDate) && (
+             {selectedCheckInDate && selectedCheckOutDate && isValid(selectedCheckInDate) && isValid(selectedCheckOutDate) && !isBefore(selectedCheckOutDate, selectedCheckInDate) && (
               <div className="flex justify-between text-sm font-medium">
                 <span>Duración Total</span>
                 <span>
@@ -257,3 +298,4 @@ export default function ReservationSidebar({
   );
 }
 
+    

@@ -15,7 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from "@/hooks/use-toast";
-import { format, addMonths, parseISO, differenceInCalendarMonths, startOfDay, isValid, isBefore } from 'date-fns';
+import { format, addMonths, parseISO, startOfDay, isValid, isBefore } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { 
   CalendarIcon, User, Mail, Phone, UploadCloud, CreditCard, FileText, ArrowLeft, ArrowRight, 
@@ -23,11 +23,12 @@ import {
 } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { simulateRedsysInitialTokenization, formatExpiryDateForDisplay, addReservation } from '@/lib/redsysUtils'; // Import Redsys utils
+import { calculateDurationInDecimalMonths } from './ReservationSidebar'; // Import the helper
 
 // Schema for Original Step 1 (Dates and Contact Info)
 const originalStep1Schema = z.object({
   startDate: z.date({ required_error: "La fecha de entrada es obligatoria." }),
-  duration: z.number({invalid_type_error: "La duración debe ser un número.", required_error: "La duración es obligatoria."}).min(1, "La duración mínima es de 1 mes."),
+  duration: z.number({invalid_type_error: "La duración debe ser un número.", required_error: "La duración es obligatoria."}).min(0.5, "La duración mínima es de 0.5 meses (quincena)."),
   firstName: z.string().min(1, "El nombre es obligatorio."),
   lastName: z.string().min(1, "Los apellidos son obligatorios."),
   email: z.string().email("Correo electrónico inválido."),
@@ -91,8 +92,7 @@ export default function ReservationForm({ room }: ReservationFormProps) {
         const startDate = startOfDay(parseISO(urlCheckIn));
         const endDate = startOfDay(parseISO(urlCheckOut));
         if (isValid(startDate) && isValid(endDate) && !isBefore(endDate,startDate)) {
-            const months = differenceInCalendarMonths(endDate, startDate);
-            return Math.max(1, months > 0 ? months : 1);
+            return calculateDurationInDecimalMonths(startDate, endDate, room.availability.minimum_stay_months);
         }
     }
     return room.availability?.minimum_stay_months || 1;
@@ -136,7 +136,20 @@ export default function ReservationForm({ room }: ReservationFormProps) {
   useEffect(() => {
     let newCheckOutDate: Date | undefined = undefined;
     if (watchedStartDate && typeof watchedDuration === 'number' && !isNaN(watchedDuration) && watchedDuration > 0) {
-      newCheckOutDate = addMonths(watchedStartDate, watchedDuration);
+      // For decimal durations, calculate checkout date based on days
+      // E.g., 1.5 months ~ 45 days.
+      const totalDays = Math.round(watchedDuration * 30.4375); // Average days in month
+      newCheckOutDate = addMonths(watchedStartDate, Math.floor(watchedDuration));
+      newCheckOutDate = addMonths(newCheckOutDate, (watchedDuration % 1) * 30.4375 / 30.4375); // this isn't quite right
+      // More direct:
+      if (watchedDuration % 1 === 0.5) { // X.5 months
+          newCheckOutDate = addMonths(watchedStartDate, Math.floor(watchedDuration));
+          newCheckOutDate = addMonths(newCheckOutDate,1); // Go to start of next month
+          newCheckOutDate = new Date(newCheckOutDate.setDate(15)); // Set to 15th
+      } else { // Whole months
+          newCheckOutDate = addMonths(watchedStartDate, Math.round(watchedDuration));
+      }
+
     }
     setReservationDetails(prev => ({
       ...prev,
@@ -162,14 +175,32 @@ export default function ReservationForm({ room }: ReservationFormProps) {
              if (urlCheckOut) {
                 const parsedUrlCheckOut = startOfDay(parseISO(urlCheckOut));
                 if (isValid(parsedUrlCheckOut) && !isBefore(parsedUrlCheckOut, parsedUrlCheckIn)) {
-                    const months = differenceInCalendarMonths(parsedUrlCheckOut, parsedUrlCheckIn);
-                    initialDuration = Math.max(1, months > 0 ? months : 1);
+                     initialDuration = calculateDurationInDecimalMonths(parsedUrlCheckIn, parsedUrlCheckOut, room.availability.minimum_stay_months);
                 }
             }
         }
     }
     setValue('startDate', initialStartDate, { shouldValidate: true });
     setValue('duration', initialDuration, { shouldValidate: true });
+
+    // Calculate checkout date based on initialDuration for reservationDetails
+    let initialCheckOutDate: Date | undefined;
+    if (initialStartDate && initialDuration > 0) {
+        if (initialDuration % 1 === 0.5) { // X.5 months
+            initialCheckOutDate = addMonths(initialStartDate, Math.floor(initialDuration));
+            // Set to approx. 15 days into that month
+            // This is tricky because addDays(14) or addDays(15) might cross month boundary if check-in is late in month
+            // A simpler approach for display consistency with calculateDurationInDecimalMonths:
+            // If it's 0.5, add 15 days. If 1.5, add 1 month + 15 days.
+            const fullMonthsPart = Math.floor(initialDuration);
+            initialCheckOutDate = addMonths(initialStartDate, fullMonthsPart);
+            initialCheckOutDate = new Date(initialCheckOutDate.setDate(getDate(initialCheckOutDate) + 14)); // Add 14 days for a total of 15 for the .5 part
+        } else { // Whole months
+            initialCheckOutDate = addMonths(initialStartDate, Math.round(initialDuration));
+        }
+    }
+
+
     setReservationDetails(prev => ({ 
       ...prev, 
       bookedRoom: room.title || room.code,
@@ -179,9 +210,10 @@ export default function ReservationForm({ room }: ReservationFormProps) {
       startDate: initialStartDate,
       duration: initialDuration,
       checkInDate: initialStartDate,
-      checkOutDate: addMonths(initialStartDate, initialDuration),
+      checkOutDate: initialCheckOutDate,
     }));
   }, [searchParams, setValue, room]);
+
 
   const proceedToNextStep = () => setCurrentStep((prev) => Math.min(prev + 1, STEPS.length));
 
@@ -222,6 +254,18 @@ export default function ReservationForm({ room }: ReservationFormProps) {
   };
 
   const onSubmit: SubmitHandler<ReservationFormData> = async (data) => {
+    // Recalculate checkout date here based on final form values for startDate and duration
+    let finalCheckOutDate: Date | undefined;
+    if (data.startDate && typeof data.duration === 'number' && data.duration > 0) {
+        const durationVal = data.duration;
+        if (durationVal % 1 === 0.5) {
+            finalCheckOutDate = addMonths(data.startDate, Math.floor(durationVal));
+            finalCheckOutDate = new Date(finalCheckOutDate.setDate(getDate(finalCheckOutDate) + 14)); // Add 14 days for a total of 15 for the .5 part
+        } else {
+            finalCheckOutDate = addMonths(data.startDate, Math.round(durationVal));
+        }
+    }
+
     setReservationDetails(prev => {
       let updatedDetails = {...prev};
       if (currentStep === 1) {
@@ -234,7 +278,7 @@ export default function ReservationForm({ room }: ReservationFormProps) {
           email: data.email,
           phone: data.phone,
           checkInDate: data.startDate,
-          checkOutDate: (data.startDate && data.duration) ? addMonths(data.startDate, data.duration) : undefined,
+          checkOutDate: finalCheckOutDate,
         };
       } else if (currentStep === 2) { // Corresponds to original Step 3 (Additional Info)
         updatedDetails = {
@@ -279,14 +323,36 @@ export default function ReservationForm({ room }: ReservationFormProps) {
   const handlePassportFileChange = (event: ChangeEvent<HTMLInputElement>) => { if (event.target.files?.[0]) setPassportFile(event.target.files[0]); };
   const handleProofFileChange = (event: ChangeEvent<HTMLInputElement>) => { if (event.target.files?.[0]) setProofFile(event.target.files[0]); };
   const progressPercentage = (currentStep / STEPS.length) * 100;
-  const calculatedCheckOutDate = reservationDetails.checkInDate && typeof reservationDetails.duration === 'number' && !isNaN(reservationDetails.duration) && reservationDetails.duration > 0
-    ? addMonths(reservationDetails.checkInDate, reservationDetails.duration)
-    : undefined;
+
+  const calculatedCheckOutDateDisplay = useMemo(() => {
+    if (watchedStartDate && typeof watchedDuration === 'number' && !isNaN(watchedDuration) && watchedDuration > 0) {
+        if (watchedDuration % 1 === 0.5) {
+            let coDate = addMonths(watchedStartDate, Math.floor(watchedDuration));
+            coDate = new Date(coDate.setDate(getDate(coDate) + 14));
+            return coDate;
+        } else {
+            return addMonths(watchedStartDate, Math.round(watchedDuration));
+        }
+    }
+    return undefined;
+  }, [watchedStartDate, watchedDuration]);
+
   const minCalendarDate = room.availability?.available_now
     ? startOfDay(new Date())
     : room.availability?.available_from
     ? startOfDay(parseISO(room.availability.available_from))
-    : startOfDay(new Date(new Date().setDate(new Date().getDate() -1)));
+    : startOfDay(new Date(new Date().setDate(new Date().getDate() -1))); // Allow yesterday for calendar picker flexibility
+
+  // Update Zod schema for duration to allow 0.5
+  const minDuration = room.availability?.minimum_stay_months ? Math.max(0.5, room.availability.minimum_stay_months) : 0.5;
+  const maxDuration = room.availability?.maximum_stay_months || 120;
+  const durationValidationSchema = z.number({invalid_type_error: "La duración debe ser un número.", required_error: "La duración es obligatoria."}).min(minDuration, `La duración mínima es de ${minDuration} meses.`).max(maxDuration, `La duración máxima es de ${maxDuration} meses.`);
+  
+  // Dynamically update the schema used by react-hook-form if needed, or ensure the initial schema is correct.
+  // For this case, we ensure combinedStep1Schema's duration part uses the dynamic minDuration.
+  // This is simplified here; a more robust solution might involve rebuilding the schema on minDuration change.
+  // However, Zod schemas are typically defined statically. We'll ensure the default schema uses a reasonable minimum (0.5).
+  // The min/max attributes on the input field provide UX guidance.
 
   return (
     <Card className="w-full max-w-2xl mx-auto shadow-2xl" suppressHydrationWarning={true}>
@@ -318,15 +384,19 @@ export default function ReservationForm({ room }: ReservationFormProps) {
               </div>
               <div>
                 <Label htmlFor="duration" className="block text-sm font-medium mb-1">Duración (meses)</Label>
-                <Controller name="duration" control={control} render={({ field }) => (
-                    <Input {...field} id="duration" type="number" placeholder="Número de meses"
+                <Controller name="duration" control={control}
+                  rules={{ validate: value => durationValidationSchema.safeParse(value).success || durationValidationSchema.safeParse(value).error?.errors[0].message }}
+                  render={({ field }) => (
+                    <Input {...field} id="duration" type="number" placeholder="Ej: 1.5 o 2"
+                           step="0.5"
                            value={field.value === undefined || field.value === null || Number.isNaN(Number(field.value)) ? '' : String(field.value)}
                            onChange={(e) => { const val = e.target.value; field.onChange(val === '' ? undefined : parseFloat(val)); }}
-                           min={String(room.availability?.minimum_stay_months || 1)} max={String(room.availability?.maximum_stay_months || 120)} />
+                           min={String(minDuration)} 
+                           max={String(maxDuration)} />
                 )} />
                 {errors.duration && <p className="text-sm text-destructive mt-1">{errors.duration.message}</p>}
-                {room.availability?.minimum_stay_months && <p className="text-xs text-muted-foreground mt-1">Estancia mínima: {room.availability.minimum_stay_months} meses.</p>}
-                {calculatedCheckOutDate && <p className="text-xs text-muted-foreground mt-1">Fecha de salida estimada: {format(calculatedCheckOutDate, "PPP", { locale: es })}.</p>}
+                <p className="text-xs text-muted-foreground mt-1">Estancia mínima: {minDuration} meses. Puedes usar decimales como .5 para quincenas.</p>
+                {calculatedCheckOutDateDisplay && <p className="text-xs text-muted-foreground mt-1">Fecha de salida estimada: {format(calculatedCheckOutDateDisplay, "PPP", { locale: es })}.</p>}
               </div>
               <div>
                 <Label htmlFor="firstName" className="flex items-center mb-1"><User className="mr-2 h-4 w-4 text-accent" />Nombre</Label>
@@ -446,7 +516,7 @@ export default function ReservationForm({ room }: ReservationFormProps) {
                 <p><strong>ID Reserva:</strong> {reservationDetails.reservationId}</p>
                 <p><strong>Habitación:</strong> {reservationDetails.bookedRoom || 'N/A'}</p>
                 <p><strong>Fecha Entrada:</strong> {reservationDetails.checkInDate ? format(reservationDetails.checkInDate, "PPP", { locale: es }) : 'N/A'}</p>
-                <p><strong>Duración:</strong> {typeof reservationDetails.duration === 'number' ? `${reservationDetails.duration} mes(es)`: 'N/A'}</p>
+                <p><strong>Duración:</strong> {typeof reservationDetails.duration === 'number' ? `${reservationDetails.duration % 1 === 0 ? reservationDetails.duration.toFixed(0) : reservationDetails.duration.toFixed(1)} mes(es)`: 'N/A'}</p>
                 <p><strong>Fecha Salida:</strong> {reservationDetails.checkOutDate ? format(reservationDetails.checkOutDate, "PPP", { locale: es }) : 'N/A'}</p>
                 <p><strong>Nombre:</strong> {reservationDetails.firstName} {reservationDetails.lastName}</p>
                 <p><strong>Email:</strong> {reservationDetails.email}</p>

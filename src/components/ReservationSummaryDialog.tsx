@@ -13,8 +13,9 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { format, isBefore, getYear, getMonth } from 'date-fns';
+import { format, isBefore, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { calculateDurationInDecimalMonths } from './ReservationSidebar'; // Import the helper
 
 interface ReservationSummaryDialogProps {
   room: Room;
@@ -35,15 +36,9 @@ export default function ReservationSummaryDialog({
 }: ReservationSummaryDialogProps) {
   
   const calculatedDurationString = () => {
-    if (selectedCheckInDate && selectedCheckOutDate && !isBefore(selectedCheckOutDate, selectedCheckInDate)) {
-      const startYear = getYear(selectedCheckInDate);
-      const startMonth = getMonth(selectedCheckInDate);
-      const endYear = getYear(selectedCheckOutDate);
-      const endMonth = getMonth(selectedCheckOutDate);
-
-      let months = (endYear - startYear) * 12 + (endMonth - startMonth) + 1;
-      months = Math.max(1, months); // Ensure at least 1 month
-      return `${months} mes(es)`;
+    if (selectedCheckInDate && selectedCheckOutDate && isValid(selectedCheckInDate) && isValid(selectedCheckOutDate) && !isBefore(selectedCheckOutDate, selectedCheckInDate)) {
+      const duration = calculateDurationInDecimalMonths(selectedCheckInDate, selectedCheckOutDate, room.availability.minimum_stay_months);
+      return `${duration % 1 === 0 ? duration.toFixed(0) : duration.toFixed(1)} mes(es)`;
     }
     return 'N/A';
   };
@@ -86,7 +81,7 @@ export default function ReservationSummaryDialog({
               {selectedCheckOutDate ? format(selectedCheckOutDate, "PPP", { locale: es }) : 'A seleccionar en el siguiente paso'}
             </p>
           </div>
-          {selectedCheckInDate && selectedCheckOutDate && !isBefore(selectedCheckOutDate, selectedCheckInDate) && (
+          {selectedCheckInDate && selectedCheckOutDate && isValid(selectedCheckInDate) && isValid(selectedCheckOutDate) && !isBefore(selectedCheckOutDate, selectedCheckInDate) && (
              <div>
               <span className="font-semibold text-muted-foreground">Duración Estimada:</span>
               <p className="text-foreground">
@@ -114,3 +109,5 @@ export default function ReservationSummaryDialog({
     </Dialog>
   );
 }
+
+    
