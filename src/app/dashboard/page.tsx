@@ -8,7 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { 
-  DollarSign, Home, CheckCircle2, ListTree, MapPin, TrendingUp, ShieldAlert, Settings, Save, Users, CreditCard, CalendarDays, BadgeEuro, Send, Trash2 
+  DollarSign, Home, CheckCircle2, ListTree, MapPin, TrendingUp, ShieldAlert, Settings, Save, Users, CreditCard, CalendarDays, BadgeEuro, Send, Trash2,
+  Briefcase, GraduationCap, HelpCircle as HelpCircleIcon // Added Briefcase, GraduationCap, HelpCircleIcon
 } from "lucide-react";
 import { useForm, Controller, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -164,6 +165,21 @@ export default function DashboardPage() {
     toast({title: "Reserva Eliminada", description: "La reserva simulada ha sido eliminada del dashboard."});
   };
 
+  const getStudyWorkStatusInfo = (statusKey?: string): { text: string; icon: JSX.Element | null } => {
+    switch (statusKey) {
+      case 'study':
+        return { text: 'Estudiante', icon: <GraduationCap className="mr-2 h-4 w-4 text-accent" /> };
+      case 'work':
+        return { text: 'Trabajador', icon: <Briefcase className="mr-2 h-4 w-4 text-accent" /> };
+      case 'both':
+        return { text: 'Estudia y Trabaja', icon: <><GraduationCap className="mr-1 h-4 w-4 text-accent" /><Briefcase className="ml-1 mr-2 h-4 w-4 text-accent" /></> };
+      case 'neither':
+        return { text: 'Otro', icon: <HelpCircleIcon className="mr-2 h-4 w-4 text-accent" /> };
+      default:
+        return { text: 'No especificado', icon: null };
+    }
+  };
+
 
   const totalRooms = useMemo(() => allRooms.length, [allRooms]);
   const verifiedRooms = useMemo(() => allRooms.filter(room => room.is_verified).length, [allRooms]);
@@ -236,7 +252,9 @@ export default function DashboardPage() {
             </Alert>
           ) : (
             <div className="space-y-6">
-              {savedReservations.map((reservation) => (
+              {savedReservations.map((reservation) => {
+                const statusInfo = getStudyWorkStatusInfo(reservation.studyOrWork);
+                return (
                 <Card key={reservation.reservationId} className="bg-background/50 shadow-md">
                   <CardHeader className="pb-3">
                     <div className="flex justify-between items-start">
@@ -262,6 +280,10 @@ export default function DashboardPage() {
                   </CardHeader>
                   <CardContent className="text-sm space-y-3 pt-0">
                     <p><strong>Inquilino:</strong> {reservation.firstName} {reservation.lastName} ({reservation.email})</p>
+                    <p className="flex items-center">
+                       {statusInfo.icon}
+                       <strong>Estado:</strong> {statusInfo.text}
+                    </p>
                     <p className="flex items-center"><CalendarDays className="mr-2 h-4 w-4 text-accent" /> 
                       <strong>Entrada:</strong> {reservation.checkInDate ? format(parseISO(reservation.checkInDate as unknown as string), "PPP", {locale: es}) : 'N/A'} - 
                       <strong>Salida:</strong> {reservation.checkOutDate ? format(parseISO(reservation.checkOutDate as unknown as string), "PPP", {locale: es}) : 'N/A'}
@@ -304,7 +326,7 @@ export default function DashboardPage() {
                     </Button>
                   </CardFooter>
                 </Card>
-              ))}
+              )})}
             </div>
           )}
         </CardContent>
@@ -342,3 +364,6 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+
+    
