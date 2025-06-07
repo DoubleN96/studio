@@ -101,7 +101,7 @@ export default function RoomFilters({ onFilterChange, initialFilters, availableC
                 <SelectValue placeholder="Selecciona ciudad" />
               </div>
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="z-[1000]"> {/* Added z-index for city dropdown */}
               <SelectItem value={ALL_CITIES_SELECT_VALUE}>Todas las ciudades</SelectItem>
               {availableCities.map((cityName) => (
                 <SelectItem key={cityName} value={cityName}>
@@ -127,7 +127,7 @@ export default function RoomFilters({ onFilterChange, initialFilters, availableC
               {checkInDate ? format(checkInDate, "PPP", { locale: es }) : <span>Selecciona entrada</span>}
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-auto p-0">
+          <PopoverContent className="w-auto p-0 z-[1000]"> {/* Increased z-index */}
             <Calendar
               mode="single"
               selected={checkInDate}
@@ -153,7 +153,7 @@ export default function RoomFilters({ onFilterChange, initialFilters, availableC
               {checkOutDate ? format(checkOutDate, "PPP", { locale: es }) : <span>Selecciona salida</span>}
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-auto p-0">
+          <PopoverContent className="w-auto p-0 z-[1000]"> {/* Increased z-index */}
             <Calendar
               mode="single"
               selected={checkOutDate}
@@ -193,3 +193,4 @@ export default function RoomFilters({ onFilterChange, initialFilters, availableC
     </div>
   );
 }
+
