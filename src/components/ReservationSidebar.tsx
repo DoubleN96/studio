@@ -13,7 +13,10 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import ReservationSummaryDialog from '@/components/ReservationSummaryDialog';
 import { CalendarDays, Info, ShieldCheck, Eye, CalendarIcon as LucideCalendarIcon } from 'lucide-react';
 import { getFromLocalStorage } from '@/lib/localStorageUtils';
-import { format, parseISO, isBefore, addMonths, differenceInDays, startOfDay, formatISO, isValid, getYear, getMonth, getDate, endOfDay } from 'date-fns';
+import { 
+  format, parseISO, isBefore, addMonths, differenceInDays, startOfDay, 
+  formatISO, isValid, getYear, getMonth, getDate, endOfDay, isEqual as dateFnsIsEqual
+} from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
@@ -38,17 +41,15 @@ export function calculateDurationInDecimalMonths(
   }
 
   const cIn = startOfDay(checkInDate);
-  const cOut = endOfDay(checkOutDate); // Use endOfDay for checkout to correctly count the last day
+  const cOut = endOfDay(checkOutDate); 
 
   let months = 0;
   let currentMonthStart = new Date(cIn);
 
-  // Iterate through months
   while (isBefore(currentMonthStart, cOut)) {
     const endOfCurrentIterationMonth = addMonths(currentMonthStart, 1);
     
-    if (isBefore(cOut, endOfCurrentIterationMonth) || isEqual(cOut, endOfCurrentIterationMonth)) {
-      // Last month (or partial month)
+    if (isBefore(cOut, endOfCurrentIterationMonth) || dateFnsIsEqual(cOut, endOfCurrentIterationMonth)) {
       const daysInThisSegment = differenceInDays(cOut, currentMonthStart) + 1;
       if (daysInThisSegment <= 15) {
         months += 0.5;
@@ -57,15 +58,12 @@ export function calculateDurationInDecimalMonths(
       }
       break;
     } else {
-      // Full month
       months += 1;
       currentMonthStart = endOfCurrentIterationMonth;
     }
   }
   
-  // Ensure the result is at least 0.5 if there's any duration,
-  // and respects the API's minimum stay if provided.
-  const calculatedMin = months > 0 ? Math.max(0.5, months) : 0.5;
+  const calculatedMin = months > 0 ? Math.max(0.5, months) : ( (isBefore(cIn, cOut) || dateFnsIsEqual(cIn,cOut)) ? 0.5 : 0 );
   return minimumStayMonthsApi ? Math.max(minimumStayMonthsApi, calculatedMin) : calculatedMin;
 }
 
@@ -136,9 +134,8 @@ export default function ReservationSidebar({
   const defaultCheckoutCalendarInitialMonth = useMemo(() => {
     if (selectedCheckInDate) {
       const minStay = typeof minStayMonthsDecimal === 'number' && minStayMonthsDecimal > 0 ? minStayMonthsDecimal : 1;
-      // For .5, we add days instead of full months for calendar positioning
-      if (minStay % 1 !== 0) { // if it's a decimal like 0.5, 1.5
-          return addMonths(selectedCheckInDate, Math.floor(minStay)); // Show the month of the floor
+      if (minStay % 1 !== 0) { 
+          return addMonths(selectedCheckInDate, Math.floor(minStay)); 
       }
       return addMonths(selectedCheckInDate, Math.floor(minStay));
     }
@@ -226,7 +223,7 @@ export default function ReservationSidebar({
                     onSelect={onCheckOutDateSelect}
                     initialFocus
                     locale={es}
-                    defaultMonth={defaultCheckoutCalendarInitialMonth} // Updated to use calculated default
+                    defaultMonth={defaultCheckoutCalendarInitialMonth} 
                     disabled={(date) => !selectedCheckInDate || isBefore(date, selectedCheckInDate)}
                   />
                 </PopoverContent>
@@ -297,5 +294,4 @@ export default function ReservationSidebar({
     </>
   );
 }
-
     
