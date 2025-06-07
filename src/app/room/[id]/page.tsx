@@ -24,12 +24,12 @@ import { es } from 'date-fns/locale';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const CardSkeleton = () => (
-  <div className="bg-card p-6 rounded-lg shadow-md space-y-4">
+  <div className="bg-card p-6 rounded-lg shadow-md space-y-4" suppressHydrationWarning={true}>
     <Skeleton className="h-8 w-3/4" />
     <Skeleton className="h-4 w-1/2" />
     <Skeleton className="h-4 w-1/3" />
     <Separator className="my-6" />
-    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4" suppressHydrationWarning={true}>
       <Skeleton className="h-16 w-full" />
       <Skeleton className="h-16 w-full" />
       <Skeleton className="h-16 w-full" />
@@ -173,15 +173,15 @@ export default function RoomPage() {
   if (isLoading) {
     return (
       <div className="max-w-6xl mx-auto" suppressHydrationWarning={true}>
-        <div className="md:flex md:gap-8">
-          <div className="md:w-2/3 space-y-6">
+        <div className="md:flex md:gap-8" suppressHydrationWarning={true}>
+          <div className="md:w-2/3 space-y-6" suppressHydrationWarning={true}>
             <Skeleton className="aspect-video w-full rounded-lg" />
             <CardSkeleton />
             <CardSkeleton />
             <Skeleton className="h-40 w-full rounded-lg" />
             <Skeleton className="h-60 w-full rounded-lg" /> {/* Skeleton for flatmates */}
           </div>
-          <div className="md:w-1/3 mt-8 md:mt-0">
+          <div className="md:w-1/3 mt-8 md:mt-0" suppressHydrationWarning={true}>
             <Skeleton className="h-96 w-full rounded-lg sticky top-24" />
           </div>
         </div>
@@ -236,7 +236,7 @@ export default function RoomPage() {
     else if (nameLower.includes("visitas") || nameLower.includes("visits")) IconComponent = Users;
     else if (nameLower.includes("aire acondicionado") || nameLower.includes("air conditioner") || nameLower.includes("a/c")) IconComponent = AirVent;
     else if (nameLower.includes("ventilador") || nameLower.includes("fan")) IconComponent = FanIcon;
-    else if (nameLower.includes("armario") || nameLower.includes("wardrobe")) IconComponent = CheckCircle2; // Fallback for Wardrobe
+    else if (nameLower.includes("armario") || nameLower.includes("wardrobe")) IconComponent = CheckCircle2;
     else if (nameLower.includes("calefacción") || nameLower.includes("heating")) IconComponent = ThermometerSun;
     else if (nameLower.includes("ascensor") || nameLower.includes("elevator") || nameLower.includes("lift")) IconComponent = ArrowBigUpDash;
     else if (nameLower.includes("parking") || nameLower.includes("garage")) IconComponent = ParkingCircle;
@@ -448,3 +448,5 @@ export default function RoomPage() {
   );
 }
         
+
+    
