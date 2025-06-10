@@ -19,11 +19,11 @@ import { format, addMonths, parseISO, startOfDay, isValid, isBefore, getDate } f
 import { es } from 'date-fns/locale';
 import { 
   CalendarIcon, User, Mail, Phone, UploadCloud, CreditCard, FileText, ArrowLeft, ArrowRight, 
-  Briefcase, GraduationCap, HomeIcon, Landmark, ShieldQuestion, UsersIcon, BookUser, Globe, Building, AlertTriangle, CheckCircle, RefreshCw
+ Briefcase, GraduationCap, HomeIcon, Landmark, ShieldQuestion, UsersIcon, BookUser, Globe, Building, AlertTriangle, CheckCircle, RefreshCw
 } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { simulateRedsysInitialTokenization, formatExpiryDateForDisplay, addReservation } from '@/lib/redsysUtils'; // Import Redsys utils
-import { calculateDurationInDecimalMonths } from '../ReservationSidebar'; // Import the helper
+import { calculateDurationInDecimalMonths } from './ReservationSidebar'; // Import the helper
 
 // Schema for Original Step 1 (Dates and Contact Info)
 const originalStep1Schema = z.object({
@@ -43,7 +43,7 @@ const originalStep2Schema = z.object({
 // Schema for Original Step 3 (Additional Info)
 const originalStep3Schema = z.object({
   birthDate: z.date({ required_error: "La fecha de nacimiento es obligatoria." }),
-  gender: z.string().min(1, "El género es obligatorio."),
+ gender: z.string().min(1, "El género es obligatorio."),
   studyOrWork: z.string().min(1, "Debes indicar si estudias o trabajas."),
   currentAddress: z.string().min(1, "La dirección actual es obligatoria. Formato: Calle Número, CP Ciudad, País."),
   passportIdNumber: z.string().min(1, "El número de pasaporte/ID es obligatorio."),
@@ -93,7 +93,7 @@ export default function ReservationForm({ room }: ReservationFormProps) {
         const endDate = startOfDay(parseISO(urlCheckOut));
         if (isValid(startDate) && isValid(endDate) && !isBefore(endDate,startDate)) {
             return calculateDurationInDecimalMonths(startDate, endDate, room.availability.minimum_stay_months);
-        }
+ }
     }
     return room.availability?.minimum_stay_months || 1;
   };
