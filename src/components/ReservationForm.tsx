@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, type ChangeEvent, useEffect } from 'react';
+import { useState, type ChangeEvent, useEffect, useMemo } from 'react';
 import { useForm, Controller, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -15,7 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from "@/hooks/use-toast";
-import { format, addMonths, parseISO, startOfDay, isValid, isBefore } from 'date-fns';
+import { format, addMonths, parseISO, startOfDay, isValid, isBefore, getDate } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { 
   CalendarIcon, User, Mail, Phone, UploadCloud, CreditCard, FileText, ArrowLeft, ArrowRight, 
@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { simulateRedsysInitialTokenization, formatExpiryDateForDisplay, addReservation } from '@/lib/redsysUtils'; // Import Redsys utils
-import { calculateDurationInDecimalMonths } from './ReservationSidebar'; // Import the helper
+import { calculateDurationInDecimalMonths } from '../ReservationSidebar'; // Import the helper
 
 // Schema for Original Step 1 (Dates and Contact Info)
 const originalStep1Schema = z.object({
@@ -144,8 +144,7 @@ export default function ReservationForm({ room }: ReservationFormProps) {
       // More direct:
       if (watchedDuration % 1 === 0.5) { // X.5 months
           newCheckOutDate = addMonths(watchedStartDate, Math.floor(watchedDuration));
-          newCheckOutDate = addMonths(newCheckOutDate,1); // Go to start of next month
-          newCheckOutDate = new Date(newCheckOutDate.setDate(15)); // Set to 15th
+          newCheckOutDate = new Date(newCheckOutDate.setDate(getDate(newCheckOutDate) + 14)); // Add 14 days for a total of 15 for the .5 part
       } else { // Whole months
           newCheckOutDate = addMonths(watchedStartDate, Math.round(watchedDuration));
       }
@@ -187,14 +186,9 @@ export default function ReservationForm({ room }: ReservationFormProps) {
     let initialCheckOutDate: Date | undefined;
     if (initialStartDate && initialDuration > 0) {
         if (initialDuration % 1 === 0.5) { // X.5 months
-            initialCheckOutDate = addMonths(initialStartDate, Math.floor(initialDuration));
-            // Set to approx. 15 days into that month
-            // This is tricky because addDays(14) or addDays(15) might cross month boundary if check-in is late in month
-            // A simpler approach for display consistency with calculateDurationInDecimalMonths:
-            // If it's 0.5, add 15 days. If 1.5, add 1 month + 15 days.
             const fullMonthsPart = Math.floor(initialDuration);
             initialCheckOutDate = addMonths(initialStartDate, fullMonthsPart);
-            initialCheckOutDate = new Date(initialCheckOutDate.setDate(getDate(initialCheckOutDate) + 14)); // Add 14 days for a total of 15 for the .5 part
+            initialCheckOutDate = new Date(initialCheckOutDate.setDate(getDate(initialCheckOutDate) + 14)); 
         } else { // Whole months
             initialCheckOutDate = addMonths(initialStartDate, Math.round(initialDuration));
         }
@@ -260,7 +254,7 @@ export default function ReservationForm({ room }: ReservationFormProps) {
         const durationVal = data.duration;
         if (durationVal % 1 === 0.5) {
             finalCheckOutDate = addMonths(data.startDate, Math.floor(durationVal));
-            finalCheckOutDate = new Date(finalCheckOutDate.setDate(getDate(finalCheckOutDate) + 14)); // Add 14 days for a total of 15 for the .5 part
+            finalCheckOutDate = new Date(finalCheckOutDate.setDate(getDate(finalCheckOutDate) + 14)); 
         } else {
             finalCheckOutDate = addMonths(data.startDate, Math.round(durationVal));
         }
@@ -280,7 +274,7 @@ export default function ReservationForm({ room }: ReservationFormProps) {
           checkInDate: data.startDate,
           checkOutDate: finalCheckOutDate,
         };
-      } else if (currentStep === 2) { // Corresponds to original Step 3 (Additional Info)
+      } else if (currentStep === 2) { 
         updatedDetails = {
           ...updatedDetails,
           birthDate: data.birthDate,
@@ -304,17 +298,16 @@ export default function ReservationForm({ room }: ReservationFormProps) {
       if (reservationDetails.initialPaymentStatus === 'success') {
         proceedToNextStep();
       } else {
-        // Validation for combinedStep1Schema has passed via react-hook-form's handleSubmit
-        await handlePaymentSimulation(data); // This will call proceedToNextStep on success
+        await handlePaymentSimulation(data); 
       }
-    } else if (currentStep === 2) { // Corresponds to original Step 3
+    } else if (currentStep === 2) { 
       if (!passportFile) {
             toast({ variant: "destructive", title: "Archivo Requerido", description: "Por favor, sube una foto de tu pasaporte/ID." });
             return;
         }
       proceedToNextStep();
-    } else if (currentStep === 3) { // Corresponds to original Step 4 (Final Confirmation)
-      addReservation(reservationDetails); // reservationDetails should be fully populated
+    } else if (currentStep === 3) { 
+      addReservation(reservationDetails); 
       toast({ title: "Reserva Simulada Guardada Localmente", description: "Puedes verla en el Dashboard." });
     }
   };
@@ -341,18 +334,12 @@ export default function ReservationForm({ room }: ReservationFormProps) {
     ? startOfDay(new Date())
     : room.availability?.available_from
     ? startOfDay(parseISO(room.availability.available_from))
-    : startOfDay(new Date(new Date().setDate(new Date().getDate() -1))); // Allow yesterday for calendar picker flexibility
+    : startOfDay(new Date(new Date().setDate(new Date().getDate() -1))); 
 
-  // Update Zod schema for duration to allow 0.5
   const minDuration = room.availability?.minimum_stay_months ? Math.max(0.5, room.availability.minimum_stay_months) : 0.5;
   const maxDuration = room.availability?.maximum_stay_months || 120;
   const durationValidationSchema = z.number({invalid_type_error: "La duración debe ser un número.", required_error: "La duración es obligatoria."}).min(minDuration, `La duración mínima es de ${minDuration} meses.`).max(maxDuration, `La duración máxima es de ${maxDuration} meses.`);
   
-  // Dynamically update the schema used by react-hook-form if needed, or ensure the initial schema is correct.
-  // For this case, we ensure combinedStep1Schema's duration part uses the dynamic minDuration.
-  // This is simplified here; a more robust solution might involve rebuilding the schema on minDuration change.
-  // However, Zod schemas are typically defined statically. We'll ensure the default schema uses a reasonable minimum (0.5).
-  // The min/max attributes on the input field provide UX guidance.
 
   return (
     <Card className="w-full max-w-2xl mx-auto shadow-2xl" suppressHydrationWarning={true}>
@@ -368,7 +355,6 @@ export default function ReservationForm({ room }: ReservationFormProps) {
         <CardContent>
           {currentStep === 1 && (
             <div className="space-y-6">
-              {/* Fields from original Step 1 */}
               <div>
                 <Label htmlFor="startDate" className="block text-sm font-medium mb-1">Fecha de Entrada</Label>
                 <Controller name="startDate" control={control} render={({ field }) => (
@@ -419,7 +405,6 @@ export default function ReservationForm({ room }: ReservationFormProps) {
                 {errors.phone && <p className="text-sm text-destructive mt-1">{errors.phone.message}</p>}
               </div>
 
-              {/* Fields from original Step 2 (Payment Simulation) */}
               <div className="border-t pt-6 mt-6 space-y-6">
                 <div className="text-center space-y-2">
                     <CreditCard className="mx-auto h-10 w-10 text-primary" />
@@ -474,7 +459,7 @@ export default function ReservationForm({ room }: ReservationFormProps) {
             </div>
           )}
 
-          {currentStep === 2 && ( // Was original Step 3
+          {currentStep === 2 && ( 
             <div className="space-y-6">
               <div><Label htmlFor="bookedRoom" className="flex items-center mb-1"><HomeIcon className="mr-2 h-4 w-4 text-accent" />Habitación Seleccionada</Label><Input id="bookedRoom" value={reservationDetails.bookedRoom || room.title} readOnly className="bg-muted"/></div>
               <div>
@@ -507,7 +492,7 @@ export default function ReservationForm({ room }: ReservationFormProps) {
             </div>
           )}
 
-          {currentStep === 3 && ( // Was original Step 4
+          {currentStep === 3 && ( 
             <div className="text-center space-y-4">
               <FileText className="mx-auto h-16 w-16 text-green-600" />
               <h3 className="text-xl font-semibold">¡Reserva Casi Lista!</h3>
